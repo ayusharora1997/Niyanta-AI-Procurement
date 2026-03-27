@@ -98,7 +98,7 @@ export function Layout({ children }: LayoutProps) {
     <div className="min-h-screen bg-[#f3f1ec] text-[#111111]">
       <aside
         className={cn(
-          'fixed left-0 top-0 z-30 flex h-screen flex-col border-r border-[#1f1f1f] bg-[radial-gradient(circle_at_top,_#1b1b1b_0%,_#0c0c0c_52%,_#060606_100%)] text-white transition-[width] duration-200',
+          'fixed left-0 top-0 z-30 flex h-screen flex-col overflow-hidden border-r border-[#1f1f1f] bg-[radial-gradient(circle_at_top,_#1b1b1b_0%,_#0c0c0c_52%,_#060606_100%)] text-white transition-[width] duration-200',
           isSidebarCollapsed ? 'w-[92px]' : 'w-[336px]',
         )}
       >
@@ -108,7 +108,7 @@ export function Layout({ children }: LayoutProps) {
           </div>
         </div>
 
-        <div className="flex-1 px-4 py-5">
+        <div className="min-h-0 flex-1 overflow-y-auto px-4 py-5">
           <div className="space-y-2">
             {navigation.map((item) => {
               const Icon = item.icon;
@@ -130,7 +130,7 @@ export function Layout({ children }: LayoutProps) {
                       title={item.name}
                       className={cn(
                         'group relative flex h-11 w-full items-center rounded-[16px] border border-transparent px-3.5 text-[14px] font-[600] text-white/90 transition',
-                        groupActive ? 'bg-[#dedad2] text-[#111111] shadow-[0_10px_28px_rgba(0,0,0,0.16)]' : 'hover:bg-white/7 hover:text-white',
+                        groupActive ? 'bg-[#dedad2] !text-[#111111] shadow-[0_10px_28px_rgba(0,0,0,0.16)] [&_svg]:!text-[#111111]' : 'hover:bg-white/7 hover:text-white',
                         isSidebarCollapsed && 'justify-center px-0',
                       )}
                     >
@@ -153,7 +153,7 @@ export function Layout({ children }: LayoutProps) {
                               to={child.path}
                               className={cn(
                                 'flex h-10 items-center rounded-[14px] px-3 text-[13px] font-[600] transition',
-                                childActive ? 'bg-[#dedad2] text-[#111111]' : 'text-white/65 hover:bg-white/7 hover:text-white',
+                                childActive ? 'bg-[#dedad2] !text-[#111111]' : 'text-white/65 hover:bg-white/7 hover:text-white',
                               )}
                             >
                               {child.name}
@@ -174,7 +174,7 @@ export function Layout({ children }: LayoutProps) {
                   title={item.name}
                   className={cn(
                     'group relative flex h-11 items-center rounded-[16px] border border-transparent px-3.5 text-[14px] font-[600] text-white/85 transition',
-                    active ? 'bg-[#dedad2] text-[#111111] shadow-[0_10px_28px_rgba(0,0,0,0.16)]' : 'hover:bg-white/7 hover:text-white',
+                    active ? 'bg-[#dedad2] !text-[#111111] shadow-[0_10px_28px_rgba(0,0,0,0.16)] [&_svg]:!text-[#111111]' : 'hover:bg-white/7 hover:text-white',
                     isSidebarCollapsed && 'justify-center px-0',
                   )}
                 >
@@ -201,7 +201,7 @@ export function Layout({ children }: LayoutProps) {
           </button>
 
           {!isSidebarCollapsed ? (
-            <div className="mt-3 rounded-[20px] border border-white/8 bg-white/6 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] backdrop-blur-sm">
+            <div className="mt-3 max-h-[42vh] overflow-y-auto rounded-[20px] border border-white/8 bg-white/6 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] backdrop-blur-sm">
               <div className="flex items-center gap-3">
                 <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-[14px] border border-white/12 bg-[#f8f4ed]">
                   <img src="/niyanta-favicon.png" alt="Module icon" className="h-8 w-8 rounded-[10px] object-cover" />
@@ -236,7 +236,7 @@ export function Layout({ children }: LayoutProps) {
                           onClick={() => setSelectedModule(module.key)}
                           className={cn(
                             'flex items-center justify-between rounded-[14px] border px-3 py-2.5 text-left transition',
-                            active ? 'border-[#d1ccc2] bg-[#dedad2] text-[#111111] shadow-[0_10px_28px_rgba(0,0,0,0.12)]' : 'border-white/8 bg-black/15 text-white/72 hover:border-white/16 hover:bg-white/8 hover:text-white',
+                            active ? 'border-[#d1ccc2] bg-[#dedad2] !text-[#111111] shadow-[0_10px_28px_rgba(0,0,0,0.12)]' : 'border-white/8 bg-black/15 text-white/72 hover:border-white/16 hover:bg-white/8 hover:text-white',
                           )}
                         >
                           <div>
