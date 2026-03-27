@@ -108,19 +108,21 @@ export function MetricCard({
   value: string;
   subtitle: string;
   borderColor: string;
-  trend: { direction: 'up' | 'down'; value: string };
+  trend?: { direction: 'up' | 'down'; value: string };
 }) {
-  const trendColor = trend.direction === 'up' ? 'text-[#059669]' : 'text-[#dc2626]';
+  const trendColor = trend?.direction === 'up' ? 'text-[#059669]' : 'text-[#dc2626]';
 
   return (
     <Card className="relative overflow-hidden p-0">
       <div className="h-full border-l-4 p-6" style={{ borderColor }}>
         <div className="mb-6 flex items-start justify-between">
           <div className="text-[12px] font-[600] uppercase tracking-[0.06em] text-[#888]">{label}</div>
-          <div className={cn('flex items-center gap-1 text-[12px] font-[600]', trendColor)}>
-            <ArrowUpRight className={cn('h-3.5 w-3.5', trend.direction === 'down' && 'rotate-90')} />
-            {trend.value}
-          </div>
+          {trend ? (
+            <div className={cn('flex items-center gap-1 text-[12px] font-[600]', trendColor)}>
+              <ArrowUpRight className={cn('h-3.5 w-3.5', trend.direction === 'down' && 'rotate-90')} />
+              {trend.value}
+            </div>
+          ) : null}
         </div>
         <div className="text-[32px] font-[700] leading-none text-[#0a0a0a]">{value}</div>
         <div className="mt-2 text-[13px] text-[#888]">{subtitle}</div>
