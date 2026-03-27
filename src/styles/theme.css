@@ -179,3 +179,27 @@
     line-height: 1.5;
   }
 }
+
+.sidebar-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: #4a4a4a rgba(255, 255, 255, 0.06);
+}
+
+.sidebar-scrollbar::-webkit-scrollbar {
+  width: 10px;
+}
+
+.sidebar-scrollbar::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 9999px;
+}
+
+.sidebar-scrollbar::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, #575757 0%, #444444 100%);
+  border-radius: 9999px;
+  border: 2px solid rgba(10, 10, 10, 0.85);
+}
+
+.sidebar-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, #666666 0%, #4f4f4f 100%);
+}

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router';
-import { CheckCircle2, FileText, Loader2, Upload } from 'lucide-react';
+import { CheckCircle2, Download, FileText, Loader2, Upload } from 'lucide-react';
 import { Card, PrimaryButton, SectionLabel, Title } from '../components/ui/Shared';
 import { mockSearches } from '../data/mockVendors';
 
@@ -11,15 +11,73 @@ const progressSteps = [
   { label: 'Complete - 23 vendors discovered', progress: 100 },
 ];
 
+const discoverySources = ['IndiaMart', 'TradeIndia', 'Udaan', 'Moglix'];
+const KEYWORD_WEBHOOK_URL = 'http://localhost:5678/webhook-test/b94b1676-475c-4132-8a79-b12be604765a';
+
 export function VendorDiscovery() {
   const [keyword, setKeyword] = useState('');
   const [rfqName, setRfqName] = useState('Q2 Packaging RFQ.pdf');
   const [rfqCount, setRfqCount] = useState(5);
   const [keywordCount, setKeywordCount] = useState(5);
+  const [selectedSources, setSelectedSources] = useState<string[]>(discoverySources);
   const [rfqStatus, setRfqStatus] = useState<'idle' | 'running' | 'complete'>('idle');
   const [keywordStatus, setKeywordStatus] = useState<'idle' | 'running' | 'complete'>('idle');
+  const [keywordWebhookError, setKeywordWebhookError] = useState<string | null>(null);
   const [rfqStepIndex, setRfqStepIndex] = useState(0);
   const [keywordStepIndex, setKeywordStepIndex] = useState(0);
+
+  const downloadRfqTemplate = () => {
+    const csv = [
+      'Item Name,Category,Quantity,Unit,Preferred Region,Required Certifications,Target Price',
+      'Cotton Drawstring Bag,Packaging,10000,Pieces,India,GST|IEC,12.5',
+      'Corrugated Carton,Packaging,5000,Pieces,India,GST,18.0',
+    ].join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'rfq-template.csv';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
+  const toggleSource = (source: string) => {
+    setSelectedSources((prev) => {
+      if (prev.includes(source)) {
+        return prev.filter((item) => item !== source);
+      }
+      return [...prev, source];
+    });
+  };
+
+  const triggerKeywordWebhook = async () => {
+    const trimmedKeyword = keyword.trim();
+    if (!trimmedKeyword) return;
+
+    setKeywordWebhookError(null);
+    setKeywordStatus('running');
+    setKeywordStepIndex(0);
+
+    try {
+      const webhookUrl = new URL(KEYWORD_WEBHOOK_URL);
+      webhookUrl.searchParams.set('Keyword', trimmedKeyword);
+
+      const response = await fetch(webhookUrl.toString(), {
+        method: 'GET',
+      });
+
+      if (!response.ok) {
+        throw new Error(`Webhook failed with status ${response.status}`);
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unable to reach webhook.';
+      setKeywordWebhookError(message);
+      setKeywordStatus('idle');
+      setKeywordStepIndex(0);
+    }
+  };
 
   useEffect(() => {
     if (rfqStatus !== 'running') return;
@@ -53,7 +111,7 @@ export function VendorDiscovery() {
     <div className="mx-auto max-w-[1240px] space-y-8">
       <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
         <div className="space-y-2">
-          <Title>Vendor Search</Title>
+          <Title>Vendor Discovery</Title>
           <p className="text-[14px] text-[#666]">Use RFQ-led discovery or direct keyword search. Vendor search and vendor dump now sit under the same discovery module.</p>
         </div>
       </div>
@@ -76,6 +134,16 @@ export function VendorDiscovery() {
               <div className="mt-1 text-[13px] text-[#666]">PDF, DOCX, or XLSX. AI will parse categories, quantity, and sourcing constraints.</div>
               <input type="file" className="hidden" onChange={(event) => setRfqName(event.target.files?.[0]?.name ?? 'Q2 Packaging RFQ.pdf')} />
             </label>
+            <div className="flex justify-start">
+              <button
+                type="button"
+                onClick={downloadRfqTemplate}
+                className="inline-flex h-9 items-center gap-2 rounded-[8px] border border-[#d6d6d6] bg-white px-3 text-[12px] font-[600] text-[#404040] transition hover:bg-[#f6f6f6]"
+              >
+                <Download className="h-3.5 w-3.5" />
+                Download RFQ Template
+              </button>
+            </div>
 
             <div className="rounded-[10px] border border-[#e5e5e5] bg-[#fafafa] p-4">
               <div className="flex items-center gap-2 text-[14px] font-[600] text-[#0a0a0a]">
@@ -87,6 +155,7 @@ export function VendorDiscovery() {
             </div>
 
             <ScrapeCounter value={rfqCount} setValue={setRfqCount} />
+            <DiscoverySourceSelector selectedSources={selectedSources} onToggleSource={toggleSource} />
 
             <PrimaryButton className="h-[52px] w-full text-[16px]" disabled={rfqStatus === 'running'} onClick={() => {
               setRfqStatus('running');
@@ -107,18 +176,28 @@ export function VendorDiscovery() {
             <input
               value={keyword}
               onChange={(event) => setKeyword(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter' && keyword.trim() && keywordStatus !== 'running') {
+                  void triggerKeywordWebhook();
+                }
+              }}
               placeholder="e.g. cotton drawstring bags, glass bottles..."
               className="h-[52px] w-full rounded-[8px] border-[1.5px] border-[#e0e0e0] px-4 text-[16px] text-[#0a0a0a] outline-none transition focus:border-[#0a0a0a] focus:ring-4 focus:ring-black/5"
             />
 
             <ScrapeCounter value={keywordCount} setValue={setKeywordCount} />
+            <DiscoverySourceSelector selectedSources={selectedSources} onToggleSource={toggleSource} />
 
-            <PrimaryButton className="h-[52px] w-full text-[16px]" disabled={!keyword || keywordStatus === 'running'} onClick={() => {
-              setKeywordStatus('running');
-              setKeywordStepIndex(0);
+            <PrimaryButton className="h-[52px] w-full text-[16px]" disabled={!keyword.trim() || keywordStatus === 'running'} onClick={() => {
+              void triggerKeywordWebhook();
             }}>
               {keywordStatus === 'running' ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Discovering...</> : 'Start Discovery'}
             </PrimaryButton>
+            {keywordWebhookError ? (
+              <div className="text-[12px] font-[500] text-[#b91c1c]">
+                Webhook error: {keywordWebhookError}
+              </div>
+            ) : null}
 
             <ProgressPanel status={keywordStatus} step={progressSteps[keywordStepIndex]} />
           </div>
@@ -163,8 +242,48 @@ function ScrapeCounter({ value, setValue }: { value: number; setValue: (value: n
       </div>
       <div className="flex items-center overflow-hidden rounded-[8px] border border-[#e5e5e5] bg-white">
         <button type="button" className="h-10 w-10 text-[#666] hover:bg-[#fafafa]" onClick={() => setValue(Math.max(5, value - 1))}>-</button>
-        <div className="flex h-10 min-w-12 items-center justify-center border-x border-[#e5e5e5] px-3 text-[14px] font-[600]">{value}</div>
+        <input
+          type="number"
+          min={5}
+          value={value}
+          onChange={(event) => {
+            const parsed = Number(event.target.value);
+            if (Number.isNaN(parsed)) {
+              return;
+            }
+            setValue(Math.max(5, parsed));
+          }}
+          className="h-10 w-16 border-x border-[#e5e5e5] text-center text-[14px] font-[600] text-[#0a0a0a] outline-none"
+        />
         <button type="button" className="h-10 w-10 text-[#666] hover:bg-[#fafafa]" onClick={() => setValue(value + 1)}>+</button>
+      </div>
+    </div>
+  );
+}
+
+function DiscoverySourceSelector({
+  selectedSources,
+  onToggleSource,
+}: {
+  selectedSources: string[];
+  onToggleSource: (source: string) => void;
+}) {
+  return (
+    <div className="rounded-[8px] border border-[#e5e5e5] bg-[#fafafa] p-4">
+      <div className="text-[14px] font-[600] text-[#0a0a0a]">Vendor discovery sources</div>
+      <div className="mt-1 text-[12px] text-[#666]">Currently we are integrating more platforms.</div>
+      <div className="mt-3 grid grid-cols-2 gap-2">
+        {discoverySources.map((source) => (
+          <label key={source} className="flex items-center gap-2 text-[13px] text-[#404040]">
+            <input
+              type="checkbox"
+              checked={selectedSources.includes(source)}
+              onChange={() => onToggleSource(source)}
+              className="h-4 w-4 rounded border-[#cfcfcf]"
+            />
+            <span>{source}</span>
+          </label>
+        ))}
       </div>
     </div>
   );
