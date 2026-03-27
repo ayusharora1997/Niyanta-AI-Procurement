@@ -245,3 +245,7 @@ export function Layout({ children }: LayoutProps) {
           </div>
         </header>
         <main className="flex-1 overflow-y-auto bg-white p-8">{children}</main>
+      </div>
+    </div>
+  );
+}
