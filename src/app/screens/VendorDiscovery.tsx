@@ -111,8 +111,8 @@ export function VendorDiscovery() {
     <div className="mx-auto max-w-[1240px] space-y-8">
       <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
         <div className="space-y-2">
-          <Title>Vendor Discovery</Title>
-          <p className="text-[14px] text-[#666]">Use RFQ-led discovery or direct keyword search. Vendor search and vendor dump now sit under the same discovery module.</p>
+          <Title>Vendor Search</Title>
+          <p className="text-[14px] text-[#666]">Use RFQ-led discovery or direct keyword search. Vendor search and vendor dump now sit under the same vendor discovery module.</p>
         </div>
       </div>
 
