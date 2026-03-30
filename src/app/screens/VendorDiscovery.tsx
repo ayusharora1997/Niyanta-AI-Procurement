@@ -12,17 +12,19 @@ const progressSteps = [
 ];
 
 const discoverySources = ['IndiaMart', 'TradeIndia', 'Udaan', 'Moglix'];
-const KEYWORD_WEBHOOK_URL = 'http://localhost:5678/webhook-test/b94b1676-475c-4132-8a79-b12be604765a';
+const KEYWORD_WEBHOOK_URL = import.meta.env.DEV
+  ? '/webhook-test/start-discovery'
+  : 'https://n8n-production-a167.up.railway.app/webhook-test/start-discovery';
 
 export function VendorDiscovery() {
   const [keyword, setKeyword] = useState('');
   const [rfqName, setRfqName] = useState('Q2 Packaging RFQ.pdf');
   const [rfqCount, setRfqCount] = useState(5);
   const [keywordCount, setKeywordCount] = useState(5);
-  const [selectedSources, setSelectedSources] = useState<string[]>(discoverySources);
   const [rfqStatus, setRfqStatus] = useState<'idle' | 'running' | 'complete'>('idle');
   const [keywordStatus, setKeywordStatus] = useState<'idle' | 'running' | 'complete'>('idle');
   const [keywordWebhookError, setKeywordWebhookError] = useState<string | null>(null);
+  const [keywordRunId, setKeywordRunId] = useState<string | null>(null);
   const [rfqStepIndex, setRfqStepIndex] = useState(0);
   const [keywordStepIndex, setKeywordStepIndex] = useState(0);
 
@@ -43,34 +45,46 @@ export function VendorDiscovery() {
     URL.revokeObjectURL(url);
   };
 
-  const toggleSource = (source: string) => {
-    setSelectedSources((prev) => {
-      if (prev.includes(source)) {
-        return prev.filter((item) => item !== source);
-      }
-      return [...prev, source];
-    });
-  };
-
-  const triggerKeywordWebhook = async () => {
-    const trimmedKeyword = keyword.trim();
-    if (!trimmedKeyword) return;
+  const startKeywordSearch = async () => {
+    const keywordValue = keyword.trim();
+    const vendorCount = keywordCount;
+    if (!keywordValue) return;
 
     setKeywordWebhookError(null);
+    setKeywordRunId(null);
     setKeywordStatus('running');
     setKeywordStepIndex(0);
 
     try {
-      const webhookUrl = new URL(KEYWORD_WEBHOOK_URL);
-      webhookUrl.searchParams.set('Keyword', trimmedKeyword);
+      const payload = {
+        keyword: keywordValue,
+        vendor_count_requested: vendorCount,
+        sources: discoverySources,
+        source_type: 'keyword',
+      };
 
-      const response = await fetch(webhookUrl.toString(), {
-        method: 'GET',
+      const res = await fetch(KEYWORD_WEBHOOK_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
       });
 
-      if (!response.ok) {
-        throw new Error(`Webhook failed with status ${response.status}`);
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(`Webhook failed: ${res.status} - ${text}`);
       }
+
+      const data = await res.json();
+      const runId = data?.run_id ?? null;
+
+      if (!runId) {
+        throw new Error('Invalid response from webhook (missing run_id)');
+      }
+
+      setKeywordRunId(runId);
+      console.log('Run ID:', runId);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unable to reach webhook.';
       setKeywordWebhookError(message);
@@ -155,12 +169,15 @@ export function VendorDiscovery() {
             </div>
 
             <ScrapeCounter value={rfqCount} setValue={setRfqCount} />
-            <DiscoverySourceSelector selectedSources={selectedSources} onToggleSource={toggleSource} />
 
-            <PrimaryButton className="h-[52px] w-full text-[16px]" disabled={rfqStatus === 'running'} onClick={() => {
-              setRfqStatus('running');
-              setRfqStepIndex(0);
-            }}>
+            <PrimaryButton
+              className="h-[52px] w-full text-[16px]"
+              disabled={rfqStatus === 'running'}
+              onClick={() => {
+                setRfqStatus('running');
+                setRfqStepIndex(0);
+              }}
+            >
               {rfqStatus === 'running' ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Parsing RFQ...</> : 'Start Discovery'}
             </PrimaryButton>
 
@@ -178,7 +195,7 @@ export function VendorDiscovery() {
               onChange={(event) => setKeyword(event.target.value)}
               onKeyDown={(event) => {
                 if (event.key === 'Enter' && keyword.trim() && keywordStatus !== 'running') {
-                  void triggerKeywordWebhook();
+                  void startKeywordSearch();
                 }
               }}
               placeholder="e.g. cotton drawstring bags, glass bottles..."
@@ -186,16 +203,24 @@ export function VendorDiscovery() {
             />
 
             <ScrapeCounter value={keywordCount} setValue={setKeywordCount} />
-            <DiscoverySourceSelector selectedSources={selectedSources} onToggleSource={toggleSource} />
 
-            <PrimaryButton className="h-[52px] w-full text-[16px]" disabled={!keyword.trim() || keywordStatus === 'running'} onClick={() => {
-              void triggerKeywordWebhook();
-            }}>
+            <PrimaryButton
+              className="h-[52px] w-full text-[16px]"
+              disabled={!keyword.trim() || keywordStatus === 'running'}
+              onClick={() => {
+                void startKeywordSearch();
+              }}
+            >
               {keywordStatus === 'running' ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Discovering...</> : 'Start Discovery'}
             </PrimaryButton>
             {keywordWebhookError ? (
               <div className="text-[12px] font-[500] text-[#b91c1c]">
                 Webhook error: {keywordWebhookError}
+              </div>
+            ) : null}
+            {keywordRunId ? (
+              <div className="text-[12px] font-[500] text-[#166534]">
+                Run ID: {keywordRunId}
               </div>
             ) : null}
 
@@ -242,48 +267,8 @@ function ScrapeCounter({ value, setValue }: { value: number; setValue: (value: n
       </div>
       <div className="flex items-center overflow-hidden rounded-[8px] border border-[#e5e5e5] bg-white">
         <button type="button" className="h-10 w-10 text-[#666] hover:bg-[#fafafa]" onClick={() => setValue(Math.max(5, value - 1))}>-</button>
-        <input
-          type="number"
-          min={5}
-          value={value}
-          onChange={(event) => {
-            const parsed = Number(event.target.value);
-            if (Number.isNaN(parsed)) {
-              return;
-            }
-            setValue(Math.max(5, parsed));
-          }}
-          className="h-10 w-16 border-x border-[#e5e5e5] text-center text-[14px] font-[600] text-[#0a0a0a] outline-none"
-        />
+        <div className="flex h-10 min-w-12 items-center justify-center border-x border-[#e5e5e5] px-3 text-[14px] font-[600]">{value}</div>
         <button type="button" className="h-10 w-10 text-[#666] hover:bg-[#fafafa]" onClick={() => setValue(value + 1)}>+</button>
-      </div>
-    </div>
-  );
-}
-
-function DiscoverySourceSelector({
-  selectedSources,
-  onToggleSource,
-}: {
-  selectedSources: string[];
-  onToggleSource: (source: string) => void;
-}) {
-  return (
-    <div className="rounded-[8px] border border-[#e5e5e5] bg-[#fafafa] p-4">
-      <div className="text-[14px] font-[600] text-[#0a0a0a]">Vendor discovery sources</div>
-      <div className="mt-1 text-[12px] text-[#666]">Currently we are integrating more platforms.</div>
-      <div className="mt-3 grid grid-cols-2 gap-2">
-        {discoverySources.map((source) => (
-          <label key={source} className="flex items-center gap-2 text-[13px] text-[#404040]">
-            <input
-              type="checkbox"
-              checked={selectedSources.includes(source)}
-              onChange={() => onToggleSource(source)}
-              className="h-4 w-4 rounded border-[#cfcfcf]"
-            />
-            <span>{source}</span>
-          </label>
-        ))}
       </div>
     </div>
   );
