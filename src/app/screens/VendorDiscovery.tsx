@@ -1,6 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router';
 import { CheckCircle2, Download, FileText, Loader2, Upload } from 'lucide-react';
+import { SearchStatusProgress } from '../components/SearchStatusProgress';
+import { useSearchProgress, type SearchProgressStatus } from '../hooks/useSearchProgress';
 import { Card, PrimaryButton, SectionLabel, Title } from '../components/ui/Shared';
 import { mockSearches } from '../data/mockVendors';
 
@@ -22,11 +24,39 @@ export function VendorDiscovery() {
   const [rfqCount, setRfqCount] = useState(5);
   const [keywordCount, setKeywordCount] = useState(5);
   const [rfqStatus, setRfqStatus] = useState<'idle' | 'running' | 'complete'>('idle');
-  const [keywordStatus, setKeywordStatus] = useState<'idle' | 'running' | 'complete'>('idle');
+  const [keywordStatus, setKeywordStatus] = useState<'idle' | SearchProgressStatus>('idle');
   const [keywordWebhookError, setKeywordWebhookError] = useState<string | null>(null);
   const [keywordRunId, setKeywordRunId] = useState<string | null>(null);
   const [rfqStepIndex, setRfqStepIndex] = useState(0);
-  const [keywordStepIndex, setKeywordStepIndex] = useState(0);
+  const [keywordProgressKey, setKeywordProgressKey] = useState<string | null>(null);
+
+  const keywordProgress = useSearchProgress(keywordRunId ?? keywordProgressKey, keywordCount);
+  const keywordProgressSnapshot = useMemo(() => {
+    if (keywordRunId) {
+      return keywordProgress;
+    }
+
+    if (keywordStatus === 'failed') {
+      return {
+        status: 'failed' as const,
+        enriched: 0,
+        total: keywordCount,
+      };
+    }
+
+    if (keywordStatus === 'initiated') {
+      return {
+        status: 'initiated' as const,
+        enriched: 0,
+        total: keywordCount,
+      };
+    }
+
+    return null;
+  }, [keywordCount, keywordProgress, keywordRunId, keywordStatus]);
+
+  const keywordSearchActive = keywordStatus === 'initiated'
+    || (keywordRunId !== null && keywordProgress.status !== 'completed' && keywordProgress.status !== 'failed');
 
   const downloadRfqTemplate = () => {
     const csv = [
@@ -52,8 +82,8 @@ export function VendorDiscovery() {
 
     setKeywordWebhookError(null);
     setKeywordRunId(null);
-    setKeywordStatus('running');
-    setKeywordStepIndex(0);
+    setKeywordProgressKey(`search-${Date.now()}`);
+    setKeywordStatus('initiated');
 
     try {
       const payload = {
@@ -84,12 +114,12 @@ export function VendorDiscovery() {
       }
 
       setKeywordRunId(runId);
+      setKeywordStatus('idle');
       console.log('Run ID:', runId);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unable to reach webhook.';
       setKeywordWebhookError(message);
-      setKeywordStatus('idle');
-      setKeywordStepIndex(0);
+      setKeywordStatus('failed');
     }
   };
 
@@ -106,20 +136,6 @@ export function VendorDiscovery() {
 
     return () => timers.forEach((timer) => window.clearTimeout(timer));
   }, [rfqStatus]);
-
-  useEffect(() => {
-    if (keywordStatus !== 'running') return;
-    const timers = [
-      window.setTimeout(() => setKeywordStepIndex(1), 900),
-      window.setTimeout(() => setKeywordStepIndex(2), 1800),
-      window.setTimeout(() => {
-        setKeywordStepIndex(3);
-        setKeywordStatus('complete');
-      }, 2800),
-    ];
-
-    return () => timers.forEach((timer) => window.clearTimeout(timer));
-  }, [keywordStatus]);
 
   return (
     <div className="mx-auto max-w-[1240px] space-y-8">
@@ -206,12 +222,12 @@ export function VendorDiscovery() {
 
             <PrimaryButton
               className="h-[52px] w-full text-[16px]"
-              disabled={!keyword.trim() || keywordStatus === 'running'}
+              disabled={!keyword.trim() || keywordSearchActive}
               onClick={() => {
                 void startKeywordSearch();
               }}
             >
-              {keywordStatus === 'running' ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Discovering...</> : 'Start Discovery'}
+              {keywordSearchActive ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Discovering...</> : 'Start Discovery'}
             </PrimaryButton>
             {keywordWebhookError ? (
               <div className="text-[12px] font-[500] text-[#b91c1c]">
@@ -224,7 +240,18 @@ export function VendorDiscovery() {
               </div>
             ) : null}
 
-            <ProgressPanel status={keywordStatus} step={progressSteps[keywordStepIndex]} />
+            {keywordProgressSnapshot ? (
+              <SearchStatusProgress
+                status={keywordProgressSnapshot.status}
+                enriched={keywordProgressSnapshot.enriched}
+                total={keywordProgressSnapshot.total}
+              />
+            ) : null}
+            {keywordRunId && keywordProgress.status === 'completed' ? (
+              <div className="text-right">
+                <Link to="/discovery/dump" className="text-[14px] font-[600] text-[#0a0a0a] hover:text-[#404040]">View in Vendor Dump</Link>
+              </div>
+            ) : null}
           </div>
         </Card>
       </div>
