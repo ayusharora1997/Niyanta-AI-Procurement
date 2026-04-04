@@ -18,6 +18,26 @@ const KEYWORD_WEBHOOK_URL = import.meta.env.DEV
   ? '/webhook-test/start-discovery'
   : 'https://n8n-production-a167.up.railway.app/webhook-test/start-discovery';
 
+function resolveRunId(payload: unknown) {
+  if (!payload || typeof payload !== 'object') return null;
+
+  const record = payload as Record<string, unknown>;
+  const directRunId = typeof record.run_id === 'string' ? record.run_id : null;
+  const directId = typeof record.id === 'string' ? record.id : null;
+
+  if (directRunId) return directRunId;
+  if (directId) return directId;
+
+  const nested = record.data;
+  if (!nested || typeof nested !== 'object') return null;
+
+  const nestedRecord = nested as Record<string, unknown>;
+  const nestedRunId = typeof nestedRecord.run_id === 'string' ? nestedRecord.run_id : null;
+  const nestedId = typeof nestedRecord.id === 'string' ? nestedRecord.id : null;
+
+  return nestedRunId ?? nestedId ?? null;
+}
+
 export function VendorDiscovery() {
   const [keyword, setKeyword] = useState('');
   const [rfqName, setRfqName] = useState('Q2 Packaging RFQ.pdf');
@@ -107,10 +127,11 @@ export function VendorDiscovery() {
       }
 
       const data = await res.json();
-      const runId = data?.run_id ?? null;
+      console.log('Webhook response:', data);
+      const runId = resolveRunId(data);
 
       if (!runId) {
-        throw new Error('Invalid response from webhook (missing run_id)');
+        throw new Error('Invalid response from webhook');
       }
 
       setKeywordRunId(runId);
@@ -210,7 +231,7 @@ export function VendorDiscovery() {
               value={keyword}
               onChange={(event) => setKeyword(event.target.value)}
               onKeyDown={(event) => {
-                if (event.key === 'Enter' && keyword.trim() && keywordStatus !== 'running') {
+                if (event.key === 'Enter' && keyword.trim() && !keywordSearchActive) {
                   void startKeywordSearch();
                 }
               }}
