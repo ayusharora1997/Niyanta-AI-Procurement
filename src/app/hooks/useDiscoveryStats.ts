@@ -26,13 +26,13 @@ export function useDiscoveryStats(fallback: DiscoveryStatsSnapshot = defaultStat
 
     const fetchStats = async () => {
       try {
-        const [{ count: searchRunsCount, error: searchRunsError }, { count: vendorsCount, error: vendorsError }] = await Promise.all([
+        const [{ count: searchRunsCount, error: searchRunsError }, { data: vendorRows, error: vendorsError }] = await Promise.all([
           supabase
             .from(searchRunsTable)
             .select('id', { count: 'exact', head: true }),
           supabase
             .from(vendorsTable)
-            .select('id', { count: 'exact', head: true }),
+            .select('vendor_id'),
         ]);
 
         if (searchRunsError) {
@@ -48,7 +48,11 @@ export function useDiscoveryStats(fallback: DiscoveryStatsSnapshot = defaultStat
         }
 
         const totalSearchesRun = searchRunsCount ?? 0;
-        const totalVendorsDiscovered = vendorsCount ?? 0;
+        const totalVendorsDiscovered = new Set(
+          (vendorRows ?? [])
+            .map((row) => row.vendor_id)
+            .filter((vendorId): vendorId is string => typeof vendorId === 'string' && vendorId.length > 0),
+        ).size;
         const avgVendorsPerSearch = totalSearchesRun === 0
           ? 0
           : totalVendorsDiscovered / totalSearchesRun;
