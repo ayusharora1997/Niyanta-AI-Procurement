@@ -47,24 +47,34 @@ export function VendorReview() {
 
   useEffect(() => {
     async function fetchData() {
-      if (!supabase) return;
-      setLoading(true);
-      const { data, error } = await supabase
-        .from('vendors')
-        .select('*')
-        .order('fetch_datetime', { ascending: false });
-
-      if (data) {
-        setVendors(data);
-        const existingDecisions: Record<number, Decision> = {};
-        data.forEach((v: VendorDB) => {
-          if (v.pipeline_status === 'selected' || v.pipeline_status === 'rejected' || v.pipeline_status === 'considerable') {
-            existingDecisions[v.id] = v.pipeline_status as Decision;
-          }
-        });
-        setDecisions(existingDecisions);
+      if (!supabase) {
+        setLoading(false);
+        return;
       }
-      setLoading(false);
+      setLoading(true);
+      try {
+        const { data, error } = await supabase
+          .from('vendors')
+          .select('*')
+          .order('fetch_datetime', { ascending: false });
+
+        if (error) throw error;
+
+        if (data) {
+          setVendors(data);
+          const existingDecisions: Record<number, Decision> = {};
+          data.forEach((v: VendorDB) => {
+            if (v.pipeline_status === 'selected' || v.pipeline_status === 'rejected' || v.pipeline_status === 'considerable') {
+              existingDecisions[v.id] = v.pipeline_status as Decision;
+            }
+          });
+          setDecisions(existingDecisions);
+        }
+      } catch (err) {
+        console.error('Error fetching vendors:', err);
+      } finally {
+        setLoading(false);
+      }
     }
     fetchData();
   }, []);
@@ -142,6 +152,20 @@ export function VendorReview() {
         decisions={decisions}
         onDecision={handleDecision}
       />
+    );
+  }
+
+  if (vendors.length === 0) {
+    return (
+      <div className="mx-auto max-w-[1200px] py-12 px-6">
+        <EmptyState
+          title={!supabase ? "Configuration Required" : "No vendors to review"}
+          description={!supabase
+            ? "Supabase connection is not configured. Please check your .env variables (VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY)."
+            : "Your review queue is currently empty. New discovery results will appear here once sourced."
+          }
+        />
+      </div>
     );
   }
 
