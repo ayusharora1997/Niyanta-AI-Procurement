@@ -1,6 +1,2 @@
 node_modules
 dist/
-<<<<<<< HEAD
-=======
-.env.local
->>>>>>> 9af41d47 (Fix Sidebar context issue and standardize imports)

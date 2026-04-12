@@ -32,7 +32,7 @@ export function useDiscoveryStats(fallback: DiscoveryStatsSnapshot = defaultStat
             .select('id', { count: 'exact', head: true }),
           supabase
             .from(vendorsTable)
-            .select('id'), // Simplified select for count or use separate count query
+            .select('vendor_id'),
         ]);
 
         if (searchRunsError) {
@@ -48,7 +48,11 @@ export function useDiscoveryStats(fallback: DiscoveryStatsSnapshot = defaultStat
         }
 
         const totalSearchesRun = searchRunsCount ?? 0;
-        const totalVendorsDiscovered = (vendorRows ?? []).length;
+        const totalVendorsDiscovered = new Set(
+          (vendorRows ?? [])
+            .map((row) => row.vendor_id)
+            .filter((vendorId): vendorId is string => typeof vendorId === 'string' && vendorId.length > 0),
+        ).size;
         const avgVendorsPerSearch = totalSearchesRun === 0
           ? 0
           : totalVendorsDiscovered / totalSearchesRun;

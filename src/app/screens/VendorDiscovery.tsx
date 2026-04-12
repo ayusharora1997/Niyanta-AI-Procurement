@@ -2,10 +2,10 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router';
 import { CheckCircle2, Download, FileText, Loader2, Upload } from 'lucide-react';
 import { SearchStatusProgress } from '../components/SearchStatusProgress';
+import { useSearchProgress, type SearchProgressStatus } from '../hooks/useSearchProgress';
 import { Card, PrimaryButton, SectionLabel, Title } from '../components/ui/Shared';
 import { mockSearches } from '../data/mockVendors';
 import { useDiscoveryStats } from '../hooks/useDiscoveryStats';
-import { useSearchProgress } from '../hooks/useSearchProgress';
 
 const progressSteps = [
   { label: 'Searching IndiaMART...', progress: 28 },
@@ -15,34 +15,28 @@ const progressSteps = [
 ];
 
 const discoverySources = ['IndiaMart', 'TradeIndia', 'Udaan', 'Moglix'];
-
 const KEYWORD_WEBHOOK_URL = import.meta.env.DEV
   ? '/webhook-test/start-discovery'
   : 'https://n8n-production-11c9.up.railway.app/webhook-test/start-discovery';
 
-function resolveRunId(payload: unknown): string | null {
-  if (!payload || typeof payload !== 'object') {
-    return null;
-  }
+function resolveRunId(payload: unknown) {
+  if (!payload || typeof payload !== 'object') return null;
 
   const record = payload as Record<string, unknown>;
-  const candidates = [record.run_id, record.id];
+  const directRunId = typeof record.run_id === 'string' ? record.run_id : null;
+  const directId = typeof record.id === 'string' ? record.id : null;
 
-  if (record.data && typeof record.data === 'object') {
-    const nested = record.data as Record<string, unknown>;
-    candidates.push(nested.run_id, nested.id);
-  }
+  if (directRunId) return directRunId;
+  if (directId) return directId;
 
-  for (const candidate of candidates) {
-    if (typeof candidate === 'string' && candidate.trim()) {
-      return candidate;
-    }
-    if (typeof candidate === 'number' && Number.isFinite(candidate)) {
-      return candidate.toString();
-    }
-  }
+  const nested = record.data;
+  if (!nested || typeof nested !== 'object') return null;
 
-  return null;
+  const nestedRecord = nested as Record<string, unknown>;
+  const nestedRunId = typeof nestedRecord.run_id === 'string' ? nestedRecord.run_id : null;
+  const nestedId = typeof nestedRecord.id === 'string' ? nestedRecord.id : null;
+
+  return nestedRunId ?? nestedId ?? null;
 }
 
 export function VendorDiscovery() {
@@ -50,13 +44,41 @@ export function VendorDiscovery() {
   const [rfqName, setRfqName] = useState('Q2 Packaging RFQ.pdf');
   const [rfqCount, setRfqCount] = useState(5);
   const [keywordCount, setKeywordCount] = useState(5);
-  const [selectedSources, setSelectedSources] = useState<string[]>(discoverySources);
   const [rfqStatus, setRfqStatus] = useState<'idle' | 'running' | 'complete'>('idle');
-  const [keywordSearchStarted, setKeywordSearchStarted] = useState(false);
+  const [keywordStatus, setKeywordStatus] = useState<'idle' | SearchProgressStatus>('idle');
   const [keywordWebhookError, setKeywordWebhookError] = useState<string | null>(null);
   const [keywordRunId, setKeywordRunId] = useState<string | null>(null);
   const [rfqStepIndex, setRfqStepIndex] = useState(0);
-  const keywordProgress = useSearchProgress(keywordRunId, keywordCount);
+  const [keywordProgressKey, setKeywordProgressKey] = useState<string | null>(null);
+
+  const keywordProgress = useSearchProgress(keywordRunId ?? keywordProgressKey, keywordCount);
+  const keywordProgressSnapshot = useMemo(() => {
+    if (keywordRunId) {
+      return keywordProgress;
+    }
+
+    if (keywordStatus === 'failed') {
+      return {
+        status: 'failed' as const,
+        enriched: 0,
+        total: keywordCount,
+      };
+    }
+
+    if (keywordStatus === 'initiated') {
+      return {
+        status: 'initiated' as const,
+        enriched: 0,
+        total: keywordCount,
+      };
+    }
+
+    return null;
+  }, [keywordCount, keywordProgress, keywordRunId, keywordStatus]);
+
+  const keywordSearchActive = keywordStatus === 'initiated'
+    || (keywordRunId !== null && keywordProgress.status !== 'completed' && keywordProgress.status !== 'failed');
+
   const discoveryStats = useDiscoveryStats({
     totalSearchesRun: mockSearches.length,
     totalVendorsDiscovered: mockSearches.reduce((sum, search) => sum + search.vendorsFound, 0),
@@ -64,35 +86,6 @@ export function VendorDiscovery() {
       ? 0
       : mockSearches.reduce((sum, search) => sum + search.vendorsFound, 0) / mockSearches.length,
   });
-
-  const keywordProgressSnapshot = useMemo(() => {
-    if (keywordWebhookError) {
-      return {
-        status: 'failed' as const,
-        total: keywordCount,
-        enriched: 0,
-      };
-    }
-
-    if (!keywordRunId) {
-      return {
-        status: 'initiated' as const,
-        total: keywordCount,
-        enriched: 0,
-      };
-    }
-
-    return {
-      status: keywordProgress.status,
-      total: keywordProgress.total || keywordCount,
-      enriched: keywordProgress.enriched,
-    };
-  }, [keywordWebhookError, keywordRunId, keywordProgress, keywordCount]);
-
-  const keywordSearchActive = keywordSearchStarted
-    && !keywordWebhookError
-    && keywordProgressSnapshot.status !== 'completed'
-    && keywordProgressSnapshot.status !== 'failed';
 
   const downloadRfqTemplate = () => {
     const csv = [
@@ -111,29 +104,21 @@ export function VendorDiscovery() {
     URL.revokeObjectURL(url);
   };
 
-  const toggleSource = (source: string) => {
-    setSelectedSources((prev) => {
-      if (prev.includes(source)) {
-        return prev.filter((item) => item !== source);
-      }
-      return [...prev, source];
-    });
-  };
-
   const startKeywordSearch = async () => {
     const keywordValue = keyword.trim();
     const vendorCount = keywordCount;
     if (!keywordValue) return;
 
-    setKeywordSearchStarted(true);
     setKeywordWebhookError(null);
     setKeywordRunId(null);
+    setKeywordProgressKey(`search-${Date.now()}`);
+    setKeywordStatus('initiated');
 
     try {
       const payload = {
         keyword: keywordValue,
         vendor_count_requested: vendorCount,
-        sources: selectedSources,
+        sources: discoverySources,
         source_type: 'keyword',
       };
 
@@ -146,21 +131,25 @@ export function VendorDiscovery() {
       });
 
       if (!res.ok) {
-        throw new Error(`Webhook failed with status ${res.status}`);
+        const text = await res.text();
+        throw new Error(`Webhook failed: ${res.status} - ${text}`);
       }
 
       const data = await res.json();
       console.log('Webhook response:', data);
       const runId = resolveRunId(data);
+
       if (!runId) {
         throw new Error('Invalid response from webhook');
       }
 
       setKeywordRunId(runId);
+      setKeywordStatus('idle');
       console.log('Run ID:', runId);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unable to reach webhook.';
       setKeywordWebhookError(message);
+      setKeywordStatus('failed');
     }
   };
 
@@ -226,12 +215,15 @@ export function VendorDiscovery() {
             </div>
 
             <ScrapeCounter value={rfqCount} setValue={setRfqCount} />
-            <DiscoverySourceSelector selectedSources={selectedSources} onToggleSource={toggleSource} />
 
-            <PrimaryButton className="h-[52px] w-full text-[16px]" disabled={rfqStatus === 'running'} onClick={() => {
-              setRfqStatus('running');
-              setRfqStepIndex(0);
-            }}>
+            <PrimaryButton
+              className="h-[52px] w-full text-[16px]"
+              disabled={rfqStatus === 'running'}
+              onClick={() => {
+                setRfqStatus('running');
+                setRfqStepIndex(0);
+              }}
+            >
               {rfqStatus === 'running' ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Parsing RFQ...</> : 'Start Discovery'}
             </PrimaryButton>
 
@@ -257,11 +249,14 @@ export function VendorDiscovery() {
             />
 
             <ScrapeCounter value={keywordCount} setValue={setKeywordCount} />
-            <DiscoverySourceSelector selectedSources={selectedSources} onToggleSource={toggleSource} />
 
-            <PrimaryButton className="h-[52px] w-full text-[16px]" disabled={!keyword.trim() || keywordSearchActive} onClick={() => {
-              void startKeywordSearch();
-            }}>
+            <PrimaryButton
+              className="h-[52px] w-full text-[16px]"
+              disabled={!keyword.trim() || keywordSearchActive}
+              onClick={() => {
+                void startKeywordSearch();
+              }}
+            >
               {keywordSearchActive ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Discovering...</> : 'Start Discovery'}
             </PrimaryButton>
             {keywordWebhookError ? (
@@ -275,12 +270,17 @@ export function VendorDiscovery() {
               </div>
             ) : null}
 
-            {keywordSearchStarted ? (
+            {keywordProgressSnapshot ? (
               <SearchStatusProgress
                 status={keywordProgressSnapshot.status}
                 enriched={keywordProgressSnapshot.enriched}
                 total={keywordProgressSnapshot.total}
               />
+            ) : null}
+            {keywordRunId && keywordProgress.status === 'completed' ? (
+              <div className="text-right">
+                <Link to="/discovery/dump" className="text-[14px] font-[600] text-[#0a0a0a] hover:text-[#404040]">View in Vendor Dump</Link>
+              </div>
             ) : null}
           </div>
         </Card>
@@ -324,48 +324,8 @@ function ScrapeCounter({ value, setValue }: { value: number; setValue: (value: n
       </div>
       <div className="flex items-center overflow-hidden rounded-[8px] border border-[#e5e5e5] bg-white">
         <button type="button" className="h-10 w-10 text-[#666] hover:bg-[#fafafa]" onClick={() => setValue(Math.max(5, value - 1))}>-</button>
-        <input
-          type="number"
-          min={5}
-          value={value}
-          onChange={(event) => {
-            const parsed = Number(event.target.value);
-            if (Number.isNaN(parsed)) {
-              return;
-            }
-            setValue(Math.max(5, parsed));
-          }}
-          className="h-10 w-16 border-x border-[#e5e5e5] text-center text-[14px] font-[600] text-[#0a0a0a] outline-none"
-        />
+        <div className="flex h-10 min-w-12 items-center justify-center border-x border-[#e5e5e5] px-3 text-[14px] font-[600]">{value}</div>
         <button type="button" className="h-10 w-10 text-[#666] hover:bg-[#fafafa]" onClick={() => setValue(value + 1)}>+</button>
-      </div>
-    </div>
-  );
-}
-
-function DiscoverySourceSelector({
-  selectedSources,
-  onToggleSource,
-}: {
-  selectedSources: string[];
-  onToggleSource: (source: string) => void;
-}) {
-  return (
-    <div className="rounded-[8px] border border-[#e5e5e5] bg-[#fafafa] p-4">
-      <div className="text-[14px] font-[600] text-[#0a0a0a]">Vendor discovery sources</div>
-      <div className="mt-1 text-[12px] text-[#666]">Currently we are integrating more platforms.</div>
-      <div className="mt-3 grid grid-cols-2 gap-2">
-        {discoverySources.map((source) => (
-          <label key={source} className="flex items-center gap-2 text-[13px] text-[#404040]">
-            <input
-              type="checkbox"
-              checked={selectedSources.includes(source)}
-              onChange={() => onToggleSource(source)}
-              className="h-4 w-4 rounded border-[#cfcfcf]"
-            />
-            <span>{source}</span>
-          </label>
-        ))}
       </div>
     </div>
   );
@@ -400,3 +360,6 @@ function ProgressPanel({
     </div>
   );
 }
+
+
+

@@ -1,520 +1,118 @@
-import { useEffect, useMemo, useState } from 'react';
-import { ArrowLeft, Search, Trophy, Calendar, ChevronDown, ExternalLink, MapPin, Globe } from 'lucide-react';
-import { Card, EmptyState, SectionLabel, Title, cn } from '../components/ui/Shared';
-import { supabase } from '../lib/supabase';
-import { useSidebar } from '@/app/components/ui/sidebar';
-import { format } from 'date-fns';
+import type { ReactNode } from 'react';
+import { useMemo, useState } from 'react';
+import { Check, Clock3, X } from 'lucide-react';
+import { BadgeRisk, BadgeScore, Card, EmptyState, SectionLabel, Title } from '../components/ui/Shared';
+import { mockVendors } from '../data/mockVendors';
 
-type Decision = 'selected' | 'rejected' | 'considerable';
-
-interface VendorDB {
-  id: number;
-  company_name: string;
-  product_search: string;
-  fetch_datetime: string;
-  address: string;
-  website: string;
-  website_other_products: string;
-  google_maps_link: string;
-  phone: string;
-  score: number;
-  risk: string;
-  Sentiment: string;
-  risk_summary: string;
-  "Sentiment Summary": string;
-  inference: string;
-  pipeline_status?: string;
-}
-
-interface GroupedData {
-  keyword: string;
-  fetchTime: string;
-  vendors: VendorDB[];
-  avgScore: number;
-  counts: {
-    total: number;
-    scored: number;
-    reviewed: number;
-    unreviewed: number;
-  };
-}
+type Decision = 'select' | 'tbd' | 'reject';
 
 export function VendorReview() {
-  const [vendors, setVendors] = useState<VendorDB[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [selectedGroup, setSelectedGroup] = useState<string | null>(null);
-  const [decisions, setDecisions] = useState<Record<number, Decision>>({});
+  const [activeFilter, setActiveFilter] = useState<'all' | 'high' | 'lowRisk'>('all');
+  const [decisions, setDecisions] = useState<Record<string, Decision>>({});
 
-  useEffect(() => {
-    async function fetchData() {
-      if (!supabase) return;
-      setLoading(true);
-      const { data, error } = await supabase
-        .from('vendors')
-        .select('*')
-        .order('fetch_datetime', { ascending: false });
-
-      if (data) {
-        setVendors(data);
-        const existingDecisions: Record<number, Decision> = {};
-        data.forEach((v: VendorDB) => {
-          if (v.pipeline_status === 'selected' || v.pipeline_status === 'rejected' || v.pipeline_status === 'considerable') {
-            existingDecisions[v.id] = v.pipeline_status as Decision;
-          }
-        });
-        setDecisions(existingDecisions);
-      }
-      setLoading(false);
-    }
-    fetchData();
-  }, []);
-
-  const groups = useMemo(() => {
-    const g: Record<string, VendorDB[]> = {};
-    vendors.forEach(v => {
-      const key = v.product_search || 'Unknown Search';
-      if (!g[key]) g[key] = [];
-      g[key].push(v);
+  const reviewQueue = useMemo(() => {
+    return mockVendors.filter((vendor) => {
+      if (!['new', 'tbd'].includes(vendor.status)) return false;
+      if (activeFilter === 'high') return vendor.score >= 8;
+      if (activeFilter === 'lowRisk') return vendor.riskLevel === 'low';
+      return true;
     });
+  }, [activeFilter]);
 
-    return Object.entries(g).map(([keyword, list]): GroupedData => {
-      const reviewedIds = Object.keys(decisions).map(Number);
-      const reviewedCount = list.filter(v => reviewedIds.includes(v.id)).length;
-      const scoredVendors = list.filter(v => (v.score || 0) > 0);
-      const avgScore = scoredVendors.length > 0
-        ? scoredVendors.reduce((sum, v) => sum + v.score, 0) / scoredVendors.length
-        : 0;
-
-      return {
-        keyword,
-        fetchTime: list[0]?.fetch_datetime,
-        vendors: list,
-        avgScore,
-        counts: {
-          total: list.length,
-          scored: scoredVendors.length,
-          reviewed: reviewedCount,
-          unreviewed: list.length - reviewedCount
-        }
-      };
-    });
-  }, [vendors, decisions]);
-
-  const handleDecision = async (id: number, decision: Decision) => {
-    // Optimistic update
-    setDecisions(prev => ({ ...prev, [id]: decision }));
-
-    if (!supabase) return;
-
-    try {
-      const { error } = await supabase
-        .from('vendors')
-        .update({ pipeline_status: decision })
-        .eq('id', id);
-
-      if (error) throw error;
-    } catch (error) {
-      console.error('Failed to save decision:', error);
-      // Rollback on error
-      setDecisions(prev => {
-        const next = { ...prev };
-        delete next[id];
-        return next;
-      });
-    }
-  };
-
-  if (loading) {
-    return (
-      <div className="flex h-[400px] flex-col items-center justify-center">
-        <div className="h-6 w-6 animate-spin rounded-full border-2 border-[#111] border-t-transparent" />
-        <p className="mt-4 text-[13px] font-medium text-slate-500">Retrieving intelligence batches...</p>
-      </div>
-    );
-  }
-
-  if (selectedGroup) {
-    const groupData = groups.find(g => g.keyword === selectedGroup);
-    return (
-      <DetailView
-        group={groupData!}
-        onBack={() => setSelectedGroup(null)}
-        decisions={decisions}
-        onDecision={handleDecision}
-      />
-    );
-  }
+  const reviewedCount = Object.keys(decisions).length;
+  const totalCount = reviewQueue.length;
 
   return (
-    <div className="mx-auto max-w-[1200px] space-y-10 py-6">
-      <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between border-b border-slate-200 pb-8">
-        <div className="space-y-1">
-          <div className="flex items-center gap-2 text-[11px] font-bold text-slate-500 uppercase tracking-widest mb-2">
-            Procurement / <span className="text-slate-900">Review Queue</span>
-          </div>
-          <Title>Vendor Review Summary</Title>
-          <p className="max-w-[600px] text-[14px] text-slate-500 font-normal">
-            Analyze sourced clusters from AI discovery. Expand a search to see recommendations or view details to complete the audit.
-          </p>
+    <div className="space-y-6">
+      <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
+        <div>
+          <Title>Vendor Review</Title>
+          <p className="mt-2 text-[14px] text-[#666]">Showing vendors pending review. Approved vendors are expected to move into Vendor Master.</p>
         </div>
-        <div className="flex items-center gap-4">
-          <div className="flex items-center gap-2 px-4 py-2 bg-slate-50 rounded-md border border-slate-200 text-[12px] font-bold text-slate-600">
-            <div className="h-2 w-2 rounded-full bg-emerald-500" />
-            Vendors {vendors.length}
-          </div>
-          <div className="flex items-center gap-2 px-4 py-2 bg-slate-50 rounded-md border border-slate-200 text-[12px] font-bold text-slate-600">
-            <div className="h-2 w-2 rounded-full bg-slate-400" />
-            Searches {groups.length}
-          </div>
+        <div className="flex flex-wrap gap-2">
+          <FilterChip active={activeFilter === 'all'} onClick={() => setActiveFilter('all')}>All</FilterChip>
+          <FilterChip active={activeFilter === 'high'} onClick={() => setActiveFilter('high')}>High Score</FilterChip>
+          <FilterChip active={activeFilter === 'lowRisk'} onClick={() => setActiveFilter('lowRisk')}>Low Risk</FilterChip>
         </div>
       </div>
 
-      <div className="space-y-1">
-        <div className="grid grid-cols-12 px-6 py-3 text-[11px] font-bold text-slate-400 tracking-wider">
-          <div className="col-span-4">Search Keyword</div>
-          <div className="col-span-3">Discovery Date</div>
-          <div className="col-span-4 text-center">Batch Status</div>
-          <div className="col-span-1" />
+      <Card>
+        <div className="flex items-center justify-between text-[14px] font-[600] text-[#0a0a0a]">
+          <span>Reviewed {reviewedCount} of {totalCount} vendors</span>
+          <span className="text-[#888]">{Math.max(totalCount - reviewedCount, 0)} remaining</span>
         </div>
-
-        <div className="flex flex-col gap-2">
-          {groups.map((group) => (
-            <GroupSummaryRow
-              key={group.keyword}
-              group={group}
-              decisions={decisions}
-              onDecision={handleDecision}
-              onViewDetail={() => setSelectedGroup(group.keyword)}
-            />
-          ))}
+        <div className="mt-3 h-1.5 rounded-full bg-[#f3f4f6]">
+          <div className="h-1.5 rounded-full bg-[#0a0a0a]" style={{ width: totalCount === 0 ? '0%' : `${(reviewedCount / totalCount) * 100}%` }} />
         </div>
-      </div>
-    </div>
-  );
-}
+      </Card>
 
-function GroupSummaryRow({ group, decisions, onDecision, onViewDetail }: {
-  group: GroupedData;
-  decisions: Record<number, Decision>;
-  onDecision: (id: number, d: Decision) => void;
-  onViewDetail: () => void
-}) {
-  const [isExpanded, setIsExpanded] = useState(false);
-  const top3 = [...group.vendors]
-    .sort((a, b) => (b.score || 0) - (a.score || 0))
-    .slice(0, 3);
+      {reviewQueue.length === 0 ? (
+        <EmptyState title="No vendors to review" description="Your review queue is clear. New discovery results will appear here." />
+      ) : (
+        <div className="grid gap-6 xl:grid-cols-3 md:grid-cols-2">
+          {reviewQueue.map((vendor) => {
+            const decision = decisions[vendor.id];
+            const decoration = decision === 'select'
+              ? { border: 'border-l-[4px] border-l-[#059669]', badge: <DecisionBadge className="bg-[#ecfdf5] text-[#065f46] border-[#a7f3d0]"><Check className="h-4 w-4" /></DecisionBadge> }
+              : decision === 'tbd'
+                ? { border: 'border-l-[4px] border-l-[#9ca3af]', badge: <DecisionBadge className="bg-[#f9fafb] text-[#6b7280] border-[#e5e5e5]"><Clock3 className="h-4 w-4" /></DecisionBadge> }
+                : decision === 'reject'
+                  ? { border: 'border-l-[4px] border-l-[#dc2626]', badge: <DecisionBadge className="bg-[#fef2f2] text-[#991b1b] border-[#fca5a5]"><X className="h-4 w-4" /></DecisionBadge> }
+                  : { border: '', badge: null };
 
-  return (
-    <div className="group border border-slate-200 bg-white rounded-lg transition-all hover:border-slate-300 overflow-hidden">
-      <div
-        onClick={() => setIsExpanded(!isExpanded)}
-        className="grid grid-cols-12 items-center px-6 py-4 cursor-pointer hover:bg-slate-50/50 transition-colors"
-      >
-        <div className="col-span-4 flex items-center gap-4">
-          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded bg-slate-100 text-slate-600">
-            <Search className="h-3.5 w-3.5" />
-          </div>
-          <div>
-            <h3 className="text-[14px] font-semibold text-slate-900 truncate max-w-[240px]">{group.keyword}</h3>
-            <div className="flex items-center gap-2 mt-0.5">
-              <span className="text-[10px] items-center gap-1 font-bold text-emerald-600 bg-emerald-50 px-1.5 rounded flex">
-                Best Score: {top3[0]?.score?.toFixed(1)}
-              </span>
-              <span className="text-[10px] items-center gap-1 font-bold text-blue-600 bg-blue-50 px-1.5 rounded flex">
-                Avg Score: {group.avgScore.toFixed(1)}
-              </span>
-            </div>
-          </div>
-        </div>
-
-        <div className="col-span-3">
-          <div className="flex items-center gap-2 text-[13px] font-medium text-slate-600">
-            <Calendar className="h-3.5 w-3.5 text-slate-400" />
-            {group.fetchTime ? format(new Date(group.fetchTime), 'MMM d, yyyy') : 'N/A'}
-          </div>
-        </div>
-
-        <div className="col-span-4 flex items-center justify-center gap-12">
-          <StatusMetric label="Vendors Identified" value={group.counts.scored} />
-          <StatusMetric label="Vendors Reviewed" value={`${group.counts.reviewed}/${group.counts.total}`} isAlert={group.counts.unreviewed > 0} />
-        </div>
-
-        <div className="col-span-1 flex justify-end">
-          <ChevronDown className={cn("h-4 w-4 text-slate-400 transition-transform duration-200", isExpanded && "rotate-180")} />
-        </div>
-      </div>
-
-      {isExpanded && (
-        <div className="px-6 pb-6 pt-2 border-t border-slate-50 bg-slate-50/30 animate-in slide-in-from-top-2 duration-200">
-          <div className="mb-4">
-            <div className="text-[10px] font-bold text-slate-400 tracking-widest mb-3 flex items-center gap-2">
-              <Trophy className="h-3 w-3 text-slate-400" />
-              Top 3 Intelligence Results
-            </div>
-            <div className="grid gap-2">
-              {top3.map((v, i) => {
-                const decision = decisions[v.id];
-                return (
-                  <div key={v.id} className="flex items-center justify-between py-2.5 px-4 bg-white border border-slate-200 rounded-md shadow-sm">
-                    <div className="flex items-center gap-3">
-                      <span className="text-[12px] font-bold text-slate-300 w-4">{i + 1}</span>
-                      <span className="text-[13px] font-semibold text-slate-700">{v.company_name}</span>
-                    </div>
-                    <div className="flex items-center gap-6">
-                      <div className="text-[11px] text-slate-500 font-bold tracking-tight">{v.risk} risk</div>
-                      <div className="h-7 w-12 flex items-center justify-center bg-slate-100 rounded text-[13px] font-black text-slate-900 border border-slate-200">
-                        {v.score?.toFixed(1)}
-                      </div>
-
-                      {decision ? (
-                        <div className={cn(
-                          "min-w-[80px] text-center text-[10px] font-black uppercase tracking-widest px-2 py-1 rounded border",
-                          decision === 'selected' ? "bg-emerald-50 text-emerald-600 border-emerald-100" :
-                            decision === 'rejected' ? "bg-red-50 text-red-600 border-red-100" : "bg-amber-50 text-amber-600 border-amber-100"
-                        )}>
-                          {decision}
-                        </div>
-                      ) : (
-                        <div className="flex items-center gap-1">
-                          <MiniActionButton label="Select" color="emerald" onClick={() => onDecision(v.id, 'selected')} />
-                          <MiniActionButton label="Hold" color="amber" onClick={() => onDecision(v.id, 'considerable')} />
-                          <MiniActionButton label="Reject" color="red" onClick={() => onDecision(v.id, 'rejected')} />
-                        </div>
-                      )}
-                    </div>
+            return (
+              <Card key={vendor.id} className={`relative rounded-[12px] ${decoration.border}`}>
+                {decoration.badge}
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <div className="text-[16px] font-[700] text-[#0a0a0a]">{vendor.name}</div>
+                    <div className="mt-2 line-clamp-2 text-[14px] leading-6 text-[#666]">{vendor.product}</div>
                   </div>
-                );
-              })}
-            </div>
-          </div>
-          <button
-            onClick={(e) => { e.stopPropagation(); onViewDetail(); }}
-            className="w-full flex items-center justify-center gap-2 py-2 text-[12px] font-bold text-slate-600 border border-slate-200 bg-white rounded-md hover:bg-slate-50 transition-colors group"
-          >
-            Show More
-            <ExternalLink className="h-3 w-3 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
-          </button>
+                  <BadgeScore score={vendor.score} />
+                </div>
+
+                <div className="mt-4 flex items-center gap-3">
+                  <BadgeRisk level={vendor.riskLevel} />
+                  <span className="text-[14px] text-[#888]">{vendor.location}</span>
+                </div>
+
+                <div className="mt-6">
+                  <SectionLabel className="mb-2">AI Assessment</SectionLabel>
+                  <div className="rounded-[6px] bg-[#fafafa] px-[14px] py-3 text-[13px] italic leading-6 text-[#404040]">{vendor.inference}</div>
+                </div>
+
+                {decision ? (
+                  <div className={`mt-6 flex h-8 items-center justify-center rounded-[8px] text-[13px] font-[600] ${decision === 'select' ? 'bg-[#ecfdf5] text-[#065f46]' : decision === 'reject' ? 'bg-[#fef2f2] text-[#991b1b]' : 'bg-[#f9fafb] text-[#6b7280]'}`}>
+                    Decision saved
+                  </div>
+                ) : (
+                  <div className="mt-6 grid grid-cols-3 gap-2">
+                    <ActionButton label="Select" hint="S" className="border-[#a7f3d0] bg-[#ecfdf5] text-[#065f46]" onClick={() => setDecisions((current) => ({ ...current, [vendor.id]: 'select' }))} />
+                    <ActionButton label="TBD" hint="T" className="border-[#e5e5e5] bg-[#f9fafb] text-[#6b7280]" onClick={() => setDecisions((current) => ({ ...current, [vendor.id]: 'tbd' }))} />
+                    <ActionButton label="Reject" hint="R" className="border-[#fca5a5] bg-[#fef2f2] text-[#991b1b]" onClick={() => setDecisions((current) => ({ ...current, [vendor.id]: 'reject' }))} />
+                  </div>
+                )}
+              </Card>
+            );
+          })}
         </div>
       )}
     </div>
   );
 }
 
-function MiniActionButton({ label, color, onClick }: { label: string; color: string; onClick: () => void }) {
-  const styles = {
-    emerald: "bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border-emerald-200",
-    amber: "bg-amber-50 text-amber-700 hover:bg-amber-100 border-amber-200",
-    red: "bg-red-50 text-red-700 hover:bg-red-100 border-red-200"
-  };
+function FilterChip({ active, onClick, children }: { active: boolean; onClick: () => void; children: string }) {
+  return <button type="button" onClick={onClick} className={`rounded-[8px] px-3 py-2 text-[13px] font-[600] ${active ? 'bg-[#0a0a0a] text-white' : 'border border-[#e5e5e5] bg-white text-[#404040]'}`}>{children}</button>;
+}
+
+function ActionButton({ label, hint, className, onClick }: { label: string; hint: string; className: string; onClick: () => void }) {
   return (
-    <button
-      onClick={(e) => { e.stopPropagation(); onClick(); }}
-      className={cn("px-2 py-1 rounded text-[10px] font-bold border transition-colors", (styles as any)[color])}
-    >
+    <button type="button" onClick={onClick} title={`Shortcut: ${hint}`} className={`h-8 rounded-[8px] border text-[13px] font-[600] ${className}`}>
       {label}
     </button>
   );
 }
 
-function StatusMetric({ label, value, isAlert = false }: { label: string; value: string | number; isAlert?: boolean }) {
-  return (
-    <div className="flex flex-col items-center min-w-[100px]">
-      <div className={cn("text-[14px] font-bold", isAlert ? "text-slate-900" : "text-slate-500")}>{value}</div>
-      <div className="text-[9px] font-bold text-slate-400 tracking-widest mt-0.5 text-center">{label}</div>
-    </div>
-  );
-}
-
-function DetailView({ group, onBack, decisions, onDecision }: {
-  group: GroupedData,
-  onBack: () => void,
-  decisions: Record<number, Decision>,
-  onDecision: (id: number, d: Decision) => void
-}) {
-  const { state } = useSidebar();
-  const unreviewedVendors = group.vendors.filter(v => !decisions[v.id]);
-  const reviewedVendorsCount = group.counts.reviewed;
-  const totalVendors = group.counts.total;
-
-  return (
-    <div className="space-y-4 animate-in fade-in duration-300">
-      <div className="flex items-center justify-between border-b border-slate-200 pb-3">
-        <button
-          onClick={onBack}
-          className="flex items-center gap-1.5 text-[10px] font-bold text-slate-500 hover:text-slate-900 transition-colors uppercase tracking-wider"
-        >
-          <ArrowLeft className="h-3 w-3" />
-          Back to list
-        </button>
-        <div className="flex items-center gap-3">
-          <div className="flex flex-col items-end">
-            <span className="text-[8px] font-bold text-slate-400 uppercase tracking-widest leading-none mb-0.5">Vetting Status</span>
-            <span className="text-[11px] font-bold text-slate-900 tracking-tight leading-none">{reviewedVendorsCount}/{totalVendors}</span>
-          </div>
-          <div className="h-6 w-6 flex items-center justify-center rounded-full bg-slate-900 text-white text-[9px] font-bold shadow-sm">
-            {totalVendors > 0 ? Math.round((reviewedVendorsCount / totalVendors) * 100) : 0}%
-          </div>
-        </div>
-      </div>
-
-      <div className="space-y-0.5">
-        <h2 className="text-[18px] font-bold text-slate-900 tracking-tight">{group.keyword}</h2>
-        <p className="text-[12px] text-slate-500 font-medium tracking-tight">Intelligence cluster: {totalVendors} total identified</p>
-      </div>
-
-      <div className={cn(
-        "grid gap-3 transition-all duration-300",
-        state === 'expanded' ? "grid-cols-1 md:grid-cols-3" : "grid-cols-1 md:grid-cols-4"
-      )}>
-        {group.vendors.map((vendor) => (
-          <VendorDetailCard
-            key={vendor.id}
-            vendor={vendor}
-            decision={decisions[vendor.id]}
-            onDecision={(d) => onDecision(vendor.id, d)}
-          />
-        ))}
-      </div>
-    </div>
-  );
-}
-
-
-function VendorDetailCard({ vendor, decision, onDecision }: { vendor: VendorDB, decision?: Decision, onDecision: (d: Decision) => void }) {
-  const risk = (vendor.risk || 'Medium').toLowerCase();
-  const riskColor = risk === 'low' ? 'emerald' : risk === 'high' ? 'red' : 'amber';
-
-  const scoreColors = {
-    emerald: "bg-emerald-50 text-emerald-700 border-emerald-200",
-    amber: "bg-amber-50 text-amber-700 border-amber-200",
-    red: "bg-red-50 text-red-700 border-red-200"
-  };
-
-  const formatPhone = (p: string) => {
-    if (!p) return 'N/A';
-    // Simple logic to add space after country code if it starts with +XX
-    if (p.startsWith('+')) {
-      const match = p.match(/^(\+\d{2})(.*)$/);
-      if (match) return `${match[1]} ${match[2]}`;
-    }
-    return p;
-  };
-
-  return (
-    <Card className={cn(
-      "flex flex-col border rounded-md p-5 bg-white shadow-sm transition-all",
-      decision ? "border-slate-300 ring-1 ring-slate-100" : "border-slate-200 hover:border-slate-300"
-    )}>
-      <div className="flex items-start justify-between mb-4">
-        <div className="space-y-1 flex-1 min-w-0 pr-2">
-          <div className="flex items-center gap-2">
-            <h3 className="text-[15px] font-bold text-slate-900 tracking-tight truncate">{vendor.company_name}</h3>
-            {decision && (
-              <span className={cn(
-                "text-[8px] font-black uppercase tracking-[0.2em] px-1.5 py-0.5 rounded-full border",
-                decision === 'selected' ? "bg-emerald-500 text-white border-emerald-600" :
-                  decision === 'rejected' ? "bg-red-500 text-white border-red-600" : "bg-amber-500 text-white border-amber-600"
-              )}>
-                {decision}
-              </span>
-            )}
-          </div>
-          <div className="text-[12px] text-slate-600 leading-normal truncate">
-            {vendor.address || 'Location unknown'}
-          </div>
-          <div className="text-[12px] font-bold text-slate-900">{formatPhone(vendor.phone)}</div>
-        </div>
-        <div className={cn(
-          "h-10 w-10 shrink-0 flex items-center justify-center rounded-md border text-[14px] font-black tabular-nums shadow-sm",
-          scoreColors[riskColor]
-        )}>
-          {vendor.score?.toFixed(1) || '0.0'}
-        </div>
-      </div>
-
-      <div className="space-y-4 flex-1 flex flex-col">
-        <div className="grid grid-cols-1 gap-3">
-          <div className="bg-slate-50/50 rounded-md p-3 border border-slate-100">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-[10px] font-bold text-slate-400 tracking-widest uppercase">Intelligence Insight</span>
-            </div>
-            <p className="text-[12px] leading-relaxed text-slate-600 font-medium line-clamp-3">
-              {vendor.inference || vendor.risk_summary || 'No detailed intelligence analysis available for this vendor.'}
-            </p>
-          </div>
-        </div>
-
-        <div className="mt-auto pt-4">
-          <div className="flex items-center justify-between gap-4 mb-4">
-            <a
-              href={vendor.google_maps_link}
-              target="_blank"
-              rel="noreferrer"
-              className="flex items-center gap-1.5 text-[11px] font-bold text-slate-600 hover:text-slate-900 transition-colors"
-            >
-              <MapPin className="h-3 w-3 text-slate-400" />
-              Maps
-            </a>
-            {vendor.website && (
-              <a
-                href={vendor.website}
-                target="_blank"
-                rel="noreferrer"
-                className="flex items-center gap-1.5 text-[11px] font-bold text-slate-600 hover:text-slate-900 transition-colors"
-              >
-                <Globe className="h-3 w-3 text-slate-400" />
-                Website
-              </a>
-            )}
-          </div>
-
-          <div className="grid grid-cols-3 gap-2">
-            <DetailActionButton
-              label="Select"
-              active={decision === 'selected'}
-              className="bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200"
-              activeClassName="bg-emerald-600 text-white border-emerald-700 shadow-md"
-              onClick={() => onDecision('selected')}
-            />
-            <DetailActionButton
-              label="Hold"
-              active={decision === 'considerable'}
-              className="bg-amber-50 text-amber-700 hover:bg-amber-100 border border-amber-200"
-              activeClassName="bg-amber-600 text-white border-amber-700 shadow-md"
-              onClick={() => onDecision('considerable')}
-            />
-            <DetailActionButton
-              label="Reject"
-              active={decision === 'rejected'}
-              className="bg-red-50 text-red-700 hover:bg-red-100 border border-red-200"
-              activeClassName="bg-red-600 text-white border-red-700 shadow-md"
-              onClick={() => onDecision('rejected')}
-            />
-          </div>
-        </div>
-      </div>
-    </Card>
-  );
-}
-
-
-function DetailActionButton({ label, active, className, activeClassName, onClick }: {
-  label: string;
-  active?: boolean;
-  className: string;
-  activeClassName: string;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={cn(
-        "flex grow items-center justify-center h-10 rounded-md text-[11px] font-bold transition-all active:scale-[0.98]",
-        active ? activeClassName : className
-      )}
-    >
-      {label}
-    </button>
-  );
+function DecisionBadge({ children, className }: { children: ReactNode; className: string }) {
+  return <div className={`absolute right-4 top-4 flex h-8 w-8 items-center justify-center rounded-full border ${className}`}>{children}</div>;
 }
