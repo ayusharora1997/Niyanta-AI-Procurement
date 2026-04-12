@@ -54,7 +54,16 @@ export function VendorReview() {
         .select('*')
         .order('fetch_datetime', { ascending: false });
 
-      if (data) setVendors(data);
+      if (data) {
+        setVendors(data);
+        const existingDecisions: Record<number, Decision> = {};
+        data.forEach((v: VendorDB) => {
+          if (v.pipeline_status === 'selected' || v.pipeline_status === 'rejected' || v.pipeline_status === 'considerable') {
+            existingDecisions[v.id] = v.pipeline_status as Decision;
+          }
+        });
+        setDecisions(existingDecisions);
+      }
       setLoading(false);
     }
     fetchData();
@@ -91,10 +100,34 @@ export function VendorReview() {
     });
   }, [vendors, decisions]);
 
+  const handleDecision = async (id: number, decision: Decision) => {
+    // Optimistic update
+    setDecisions(prev => ({ ...prev, [id]: decision }));
+
+    if (!supabase) return;
+
+    try {
+      const { error } = await supabase
+        .from('vendors')
+        .update({ pipeline_status: decision })
+        .eq('id', id);
+
+      if (error) throw error;
+    } catch (error) {
+      console.error('Failed to save decision:', error);
+      // Rollback on error
+      setDecisions(prev => {
+        const next = { ...prev };
+        delete next[id];
+        return next;
+      });
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex h-[400px] flex-col items-center justify-center">
-        <div className="h-6 w-6 animate-spin rounded-full border-2 border-slate-900 border-t-transparent" />
+        <div className="h-6 w-6 animate-spin rounded-full border-2 border-[#111] border-t-transparent" />
         <p className="mt-4 text-[13px] font-medium text-slate-500">Retrieving intelligence batches...</p>
       </div>
     );
@@ -107,7 +140,7 @@ export function VendorReview() {
         group={groupData!}
         onBack={() => setSelectedGroup(null)}
         decisions={decisions}
-        onDecision={(id, d) => setDecisions(prev => ({ ...prev, [id]: d }))}
+        onDecision={handleDecision}
       />
     );
   }
@@ -150,7 +183,7 @@ export function VendorReview() {
               key={group.keyword}
               group={group}
               decisions={decisions}
-              onDecision={(id, d) => setDecisions(prev => ({ ...prev, [id]: d }))}
+              onDecision={handleDecision}
               onViewDetail={() => setSelectedGroup(group.keyword)}
             />
           ))}
@@ -326,34 +359,28 @@ function DetailView({ group, onBack, decisions, onDecision }: {
 
       <div className="space-y-0.5">
         <h2 className="text-[18px] font-bold text-slate-900 tracking-tight">{group.keyword}</h2>
-        <p className="text-[12px] text-slate-500 font-medium tracking-tight">Vetting {unreviewedVendors.length} active leads</p>
+        <p className="text-[12px] text-slate-500 font-medium tracking-tight">Intelligence cluster: {totalVendors} total identified</p>
       </div>
 
-      {unreviewedVendors.length === 0 ? (
-        <EmptyState
-          title="Audit Complete"
-          description="You've reviewed every vendor for this keyword. All selected vendors have been queued for Master List."
-        />
-      ) : (
-        <div className={cn(
-          "grid gap-3 transition-all duration-300",
-          state === 'expanded' ? "grid-cols-1 md:grid-cols-3" : "grid-cols-1 md:grid-cols-4"
-        )}>
-          {unreviewedVendors.map((vendor) => (
-            <VendorDetailCard
-              key={vendor.id}
-              vendor={vendor}
-              onDecision={(d) => onDecision(vendor.id, d)}
-            />
-          ))}
-        </div>
-      )}
+      <div className={cn(
+        "grid gap-3 transition-all duration-300",
+        state === 'expanded' ? "grid-cols-1 md:grid-cols-3" : "grid-cols-1 md:grid-cols-4"
+      )}>
+        {group.vendors.map((vendor) => (
+          <VendorDetailCard
+            key={vendor.id}
+            vendor={vendor}
+            decision={decisions[vendor.id]}
+            onDecision={(d) => onDecision(vendor.id, d)}
+          />
+        ))}
+      </div>
     </div>
   );
 }
 
 
-function VendorDetailCard({ vendor, onDecision }: { vendor: VendorDB, onDecision: (d: Decision) => void }) {
+function VendorDetailCard({ vendor, decision, onDecision }: { vendor: VendorDB, decision?: Decision, onDecision: (d: Decision) => void }) {
   const risk = (vendor.risk || 'Medium').toLowerCase();
   const riskColor = risk === 'low' ? 'emerald' : risk === 'high' ? 'red' : 'amber';
 
@@ -374,19 +401,25 @@ function VendorDetailCard({ vendor, onDecision }: { vendor: VendorDB, onDecision
   };
 
   return (
-    <Card className="flex flex-col border border-slate-200 rounded-md p-5 bg-white shadow-sm hover:border-slate-300 transition-all">
+    <Card className={cn(
+      "flex flex-col border rounded-md p-5 bg-white shadow-sm transition-all",
+      decision ? "border-slate-300 ring-1 ring-slate-100" : "border-slate-200 hover:border-slate-300"
+    )}>
       <div className="flex items-start justify-between mb-4">
         <div className="space-y-1 flex-1 min-w-0 pr-2">
           <div className="flex items-center gap-2">
-            <h3 className="text-[15px] font-bold text-slate-900 tracking-tight">{vendor.company_name}</h3>
-            <span className={cn(
-              "text-[9px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded border",
-              scoreColors[riskColor]
-            )}>
-              {vendor.risk || 'Medium'}
-            </span>
+            <h3 className="text-[15px] font-bold text-slate-900 tracking-tight truncate">{vendor.company_name}</h3>
+            {decision && (
+              <span className={cn(
+                "text-[8px] font-black uppercase tracking-[0.2em] px-1.5 py-0.5 rounded-full border",
+                decision === 'selected' ? "bg-emerald-500 text-white border-emerald-600" :
+                  decision === 'rejected' ? "bg-red-500 text-white border-red-600" : "bg-amber-500 text-white border-amber-600"
+              )}>
+                {decision}
+              </span>
+            )}
           </div>
-          <div className="text-[12px] text-slate-600 leading-normal">
+          <div className="text-[12px] text-slate-600 leading-normal truncate">
             {vendor.address || 'Location unknown'}
           </div>
           <div className="text-[12px] font-bold text-slate-900">{formatPhone(vendor.phone)}</div>
@@ -401,28 +434,12 @@ function VendorDetailCard({ vendor, onDecision }: { vendor: VendorDB, onDecision
 
       <div className="space-y-4 flex-1 flex flex-col">
         <div className="grid grid-cols-1 gap-3">
-          <div className="bg-red-50/20 rounded-md p-3 border border-red-100/50">
+          <div className="bg-slate-50/50 rounded-md p-3 border border-slate-100">
             <div className="flex items-center justify-between mb-2">
-              <span className="text-[10px] font-bold text-slate-400 tracking-widest">Risk Summary</span>
+              <span className="text-[10px] font-bold text-slate-400 tracking-widest uppercase">Intelligence Insight</span>
             </div>
-            <p className="text-[12px] leading-relaxed text-slate-600 font-medium">
-              {vendor.risk_summary || 'No risk signals found in intelligence audit.'}
-            </p>
-          </div>
-
-          <div className="bg-blue-50/20 rounded-md p-3 border border-blue-100/50 relative">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-[10px] font-bold text-slate-400 tracking-widest">Market Sentiment</span>
-              <span className={cn(
-                "text-[9px] font-black uppercase px-2 py-0.5 rounded border",
-                vendor.Sentiment?.toLowerCase().includes('positive') ? "bg-emerald-50 text-emerald-600 border-emerald-100" :
-                  vendor.Sentiment?.toLowerCase().includes('negative') ? "bg-red-50 text-red-600 border-red-100" : "bg-slate-50 text-slate-600 border-slate-200"
-              )}>
-                {vendor.Sentiment || 'Neutral'}
-              </span>
-            </div>
-            <p className="text-[12px] leading-relaxed text-slate-600 font-medium">
-              {vendor["Sentiment Summary"] || 'Sentiment trends for this vector are exceptionally stable.'}
+            <p className="text-[12px] leading-relaxed text-slate-600 font-medium line-clamp-3">
+              {vendor.inference || vendor.risk_summary || 'No detailed intelligence analysis available for this vendor.'}
             </p>
           </div>
         </div>
@@ -436,7 +453,7 @@ function VendorDetailCard({ vendor, onDecision }: { vendor: VendorDB, onDecision
               className="flex items-center gap-1.5 text-[11px] font-bold text-slate-600 hover:text-slate-900 transition-colors"
             >
               <MapPin className="h-3 w-3 text-slate-400" />
-              Show on maps
+              Maps
             </a>
             {vendor.website && (
               <a
@@ -451,20 +468,26 @@ function VendorDetailCard({ vendor, onDecision }: { vendor: VendorDB, onDecision
             )}
           </div>
 
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-3 gap-2">
             <DetailActionButton
               label="Select"
+              active={decision === 'selected'}
               className="bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200"
+              activeClassName="bg-emerald-600 text-white border-emerald-700 shadow-md"
               onClick={() => onDecision('selected')}
             />
             <DetailActionButton
               label="Hold"
+              active={decision === 'considerable'}
               className="bg-amber-50 text-amber-700 hover:bg-amber-100 border border-amber-200"
+              activeClassName="bg-amber-600 text-white border-amber-700 shadow-md"
               onClick={() => onDecision('considerable')}
             />
             <DetailActionButton
               label="Reject"
+              active={decision === 'rejected'}
               className="bg-red-50 text-red-700 hover:bg-red-100 border border-red-200"
+              activeClassName="bg-red-600 text-white border-red-700 shadow-md"
               onClick={() => onDecision('rejected')}
             />
           </div>
@@ -475,14 +498,20 @@ function VendorDetailCard({ vendor, onDecision }: { vendor: VendorDB, onDecision
 }
 
 
-function DetailActionButton({ label, className, onClick }: { label: string; className: string; onClick: () => void }) {
+function DetailActionButton({ label, active, className, activeClassName, onClick }: {
+  label: string;
+  active?: boolean;
+  className: string;
+  activeClassName: string;
+  onClick: () => void;
+}) {
   return (
     <button
       type="button"
       onClick={onClick}
       className={cn(
         "flex grow items-center justify-center h-10 rounded-md text-[11px] font-bold transition-all active:scale-[0.98]",
-        className
+        active ? activeClassName : className
       )}
     >
       {label}
