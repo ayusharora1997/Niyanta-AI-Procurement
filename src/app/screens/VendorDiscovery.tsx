@@ -5,6 +5,7 @@ import { SearchStatusProgress } from '../components/SearchStatusProgress';
 import { useSearchProgress, type SearchProgressStatus } from '../hooks/useSearchProgress';
 import { Card, PrimaryButton, SectionLabel, Title } from '../components/ui/Shared';
 import { mockSearches } from '../data/mockVendors';
+import { useDiscoveryStats } from '../hooks/useDiscoveryStats';
 
 const progressSteps = [
   { label: 'Searching IndiaMART...', progress: 28 },
@@ -77,6 +78,14 @@ export function VendorDiscovery() {
 
   const keywordSearchActive = keywordStatus === 'initiated'
     || (keywordRunId !== null && keywordProgress.status !== 'completed' && keywordProgress.status !== 'failed');
+
+  const discoveryStats = useDiscoveryStats({
+    totalSearchesRun: mockSearches.length,
+    totalVendorsDiscovered: mockSearches.reduce((sum, search) => sum + search.vendorsFound, 0),
+    avgVendorsPerSearch: mockSearches.length === 0
+      ? 0
+      : mockSearches.reduce((sum, search) => sum + search.vendorsFound, 0) / mockSearches.length,
+  });
 
   const downloadRfqTemplate = () => {
     const csv = [
@@ -168,9 +177,9 @@ export function VendorDiscovery() {
       </div>
 
       <div className="grid gap-4 md:grid-cols-3">
-        <StatCard label="Total Searches Run" value="14" />
-        <StatCard label="Total Vendors Discovered" value="143" />
-        <StatCard label="Avg Vendors / Search" value="10.2" />
+        <StatCard label="Total Searches Run" value={String(discoveryStats.totalSearchesRun)} />
+        <StatCard label="Total Vendors Discovered" value={String(discoveryStats.totalVendorsDiscovered)} />
+        <StatCard label="Avg Vendors / Search" value={discoveryStats.avgVendorsPerSearch.toFixed(1)} />
       </div>
 
       <div className="grid gap-6 xl:grid-cols-2">
@@ -351,4 +360,6 @@ function ProgressPanel({
     </div>
   );
 }
+
+
 
