@@ -16,6 +16,7 @@ import {
   User,
 } from 'lucide-react';
 import { cn } from './ui/Shared';
+import { SidebarProvider } from './ui/sidebar';
 
 interface LayoutProps {
   children: ReactNode;
@@ -95,13 +96,14 @@ export function Layout({ children }: LayoutProps) {
   }, [location.pathname]);
 
   return (
-    <div className="min-h-screen bg-[#f3f1ec] text-[#111111]">
-      <aside
-        className={cn(
-          'fixed left-0 top-0 z-30 flex h-screen flex-col overflow-hidden border-r border-[#1f1f1f] bg-[radial-gradient(circle_at_top,_#1b1b1b_0%,_#0c0c0c_52%,_#060606_100%)] text-white transition-[width] duration-200',
-          isSidebarCollapsed ? 'w-[92px]' : 'w-[336px]',
-        )}
-      >
+    <SidebarProvider open={!isSidebarCollapsed} onOpenChange={(open) => setIsSidebarCollapsed(!open)}>
+      <div className="min-h-screen bg-[#f3f1ec] text-[#111111] w-full">
+        <aside
+          className={cn(
+            'fixed left-0 top-0 z-30 flex h-screen flex-col overflow-hidden border-r border-[#1f1f1f] bg-[radial-gradient(circle_at_top,_#1b1b1b_0%,_#0c0c0c_52%,_#060606_100%)] text-white transition-[width] duration-200',
+            isSidebarCollapsed ? 'w-[92px]' : 'w-[336px]',
+          )}
+        >
         <div className="border-b border-white/8 px-5 py-5">
           <div className={cn('flex items-center gap-3', isSidebarCollapsed && 'justify-center')}>
             <BrandMark compact={isSidebarCollapsed} />
@@ -291,7 +293,7 @@ export function Layout({ children }: LayoutProps) {
           {isActiveModuleAvailable ? children : <ModuleNotFound moduleName={selectedModule} />}
         </main>
       </div>
-    </div>
+    </SidebarProvider>
   );
 }
 
