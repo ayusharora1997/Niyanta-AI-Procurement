@@ -117,7 +117,7 @@ export function VendorDiscovery() {
     try {
       const payload = {
         keyword: keywordValue,
-        vendor_count_requested: vendorCount,
+        vendor_limit: vendorCount,
         sources: discoverySources,
         source_type: 'keyword',
       };
