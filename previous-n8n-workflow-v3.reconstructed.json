@@ -1,0 +1,786 @@
+{
+  "name": "Niyanta AI - Vendor Discovery v3",
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "timeSavedMode": "fixed",
+    "timezone": "Asia/Kolkata",
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": true
+  },
+  "meta": {
+    "aiBuilderAssisted": true,
+    "templateCredsSetupCompleted": true
+  },
+  "tags": [],
+  "pinData": {},
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "start-discovery",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -208,
+        1792
+      ],
+      "id": "2c55302d-3066-4d08-aab9-6f93b7545379",
+      "name": "Webhook",
+      "webhookId": "41251811-a2c1-421d-864a-a252f17496c0"
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "gpt-4",
+          "mode": "list",
+          "cachedResultName": "GPT-4"
+        },
+        "responses": {
+          "values": [
+            {
+              "content": "=You are a supplier discovery assistant for Niyanta AI, an AI procurement system in India.\n\nYour task is to:\n1. Normalize the product keyword into a standard industry term\n2. Generate exactly 1 high-quality IndiaMART search queries\n\nEach query must target a DIFFERENT supplier type from this list:\n- Manufacturers\n- Exporters\n- Wholesale suppliers\n- OEM / private label vendors\n- Contract manufacturers\n- Packaging suppliers\n- Raw material suppliers\n- Distributors\n\n---\n\nINPUT:\nProduct to source: \"{{ $json.body.keyword }}\"\n\n---\n\nOUTPUT FORMAT (STRICT JSON ONLY):\n\n{\n  \"original_keyword\": \"\",\n  \"normalized_keyword\": \"\",\n  \"queries\": [\n    \"query1\",\n      \"query 2\"\n  ]\n}\n\n---\n\nRULES:\n\n- Return ONLY valid JSON (no markdown, no explanation)\n- Return EXACTLY 1 queries — no more, no less\n- \"queries\" MUST be an array of 1 strings\n- Each query must:\n  - Be optimized for IndiaMART search\n  - Include the normalized keyword\n  - Include supplier intent (manufacturer/exporter/etc.)\n  - Be practical and realistic (used by real buyers)\n\n- The two queries MUST target different supplier types\n- Keep queries concise but high intent\n\n---\n\nEXAMPLE:\n\nInput: \"juice machine\"\n\nOutput:\n{\n  \"original_keyword\": \"juice machine\",\n  \"normalized_keyword\": \"industrial fruit juice processing machine\",\n  \"queries\": [\n    \"industrial fruit juice processing machine manufacturers India\",\n    \"fruit juice machine OEM supplier India private label\"\n  ]\n}"
+            }
+          ]
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        1792
+      ],
+      "id": "ae23ed1c-3d96-4d1b-8109-0ff5327abf73",
+      "name": "Message a model"
+    },
+    {
+      "parameters": {
+        "jsCode": "const raw = items[0].json.output?.[0]?.content?.[0]?.text || \"\";\nconst input = items[0].json;\n\nlet parsed;\n\ntry {\n  const match = raw.match(/\\{[\\s\\S]*\\}/);\n\n  if (!match) {\n    throw new Error(\"No JSON found in model output\");\n  }\n\n  parsed = JSON.parse(match[0]);\n\n} catch (e) {\n  throw new Error(\"Parsing failed: \" + raw);\n}\n\nreturn [\n  {\n    json: {\n      keyword: parsed.original_keyword,\n      normalized_keyword: parsed.normalized_keyword,\n      derived_keywords: parsed.queries,\n      vendor_count_requested: input.vendor_count_requested || 5,\n      status: \"pending\",\n      source_type: input.source_type || \"keyword\",\n      sources: input.sources || [],\n      client_id: 1\n    }\n  }\n];"
+      },
+      "id": "ebf51f22-9743-470a-a853-d5f43835a532",
+      "name": "Parse Input1",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        304,
+        1792
+      ]
+    },
+    {
+      "parameters": {
+        "tableId": "search_runs",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "keyword",
+              "fieldValue": "={{ $json.keyword }}"
+            },
+            {
+              "fieldId": "derived_keywords",
+              "fieldValue": "={{ $json.derived_keywords }}"
+            },
+            {
+              "fieldId": "status",
+              "fieldValue": "={{ $json.status }}"
+            },
+            {
+              "fieldId": "vendor_count_requested",
+              "fieldValue": "={{ $json.vendor_count_requested }}"
+            },
+            {
+              "fieldId": "source_type",
+              "fieldValue": "={{ $json.source_type }}"
+            },
+            {
+              "fieldId": "sources",
+              "fieldValue": "={{ $json.sources }}"
+            },
+            {
+              "fieldId": "client_id",
+              "fieldValue": "={{ $json.client_id }}"
+            },
+            {
+              "fieldId": "status",
+              "fieldValue": "initiated"
+            },
+            {
+              "fieldId": "total_vendors_found",
+              "fieldValue": "0"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        512,
+        1792
+      ],
+      "id": "a4feb244-d28e-4077-bdc9-8c45a659d6c7",
+      "name": "Create a row"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        928,
+        1792
+      ],
+      "id": "bc5a610f-795f-45cb-aa82-4df1b8280eec",
+      "name": "Loop Over Items"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.noOp",
+      "name": "Replace Me",
+      "typeVersion": 1,
+      "position": [
+        2272,
+        1808
+      ],
+      "id": "5a8fbfb4-3d5c-48a8-83af-8ef1dd13d6c4"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.firecrawl.dev/v1/scrape",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer <redacted>"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"url\": \"https://dir.indiamart.com/search.mp?ss={{ $json.product_search.replace(/ /g, '+') }}\",\n  \"formats\": [\"markdown\"],\n  \"onlyMainContent\": false\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1216,
+        1808
+      ],
+      "id": "d71ac3ed-5c14-4a8b-a3d7-14c31214f63e",
+      "name": "FlameCrawl Scrapper (Product Details)"
+    },
+    {
+      "parameters": {
+        "jsCode": "const runId = $('Create a row').first().json.id;\nconst input = items[0].json;\nconst queries = input.derived_keywords || [];\n\nreturn queries.map((q, index) => ({\n  json: {\n    search_run_id: runId,\n    keyword: input.keyword,\n    product_search: q,\n    query_index: index\n  }\n}));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        720,
+        1792
+      ],
+      "id": "7a60b8d3-d46a-4c5a-b3f7-51f27fd1499f",
+      "name": "Code in JavaScript"
+    },
+    {
+      "parameters": {
+        "tableId": "vendors",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "search_run_id",
+              "fieldValue": "={{ $('Code in JavaScript1').item.json.search_run_id }}"
+            },
+            {
+              "fieldId": "vendor_id",
+              "fieldValue": "={{ $('Code in JavaScript1').item.json.vendor_id }}"
+            },
+            {
+              "fieldId": "fetch_datetime",
+              "fieldValue": "={{ $('Code in JavaScript1').item.json.fetch_datetime }}"
+            },
+            {
+              "fieldId": "company_name",
+              "fieldValue": "={{ $('Code in JavaScript1').item.json.company_name }}"
+            },
+            {
+              "fieldId": "vendor_url",
+              "fieldValue": "={{ $('Code in JavaScript1').item.json.vendor_url }}"
+            },
+            {
+              "fieldId": "product_name",
+              "fieldValue": "={{ $('Code in JavaScript1').item.json.product_name }}"
+            },
+            {
+              "fieldId": "product_url",
+              "fieldValue": "={{ $('Code in JavaScript1').item.json.product_url }}"
+            },
+            {
+              "fieldId": "price",
+              "fieldValue": "={{ $('Code in JavaScript1').item.json.price }}"
+            },
+            {
+              "fieldId": "moq",
+              "fieldValue": "={{ $('Code in JavaScript1').item.json.moq }}"
+            },
+            {
+              "fieldId": "rating",
+              "fieldValue": "={{ $('Code in JavaScript1').item.json.rating }}"
+            },
+            {
+              "fieldId": "source",
+              "fieldValue": "={{ $('Code in JavaScript1').item.json.source }}"
+            },
+            {
+              "fieldId": "client_id",
+              "fieldValue": "={{ $('Code in JavaScript1').item.json.client_id }}"
+            },
+            {
+              "fieldId": "pipeline_status",
+              "fieldValue": "={{ $('Code in JavaScript1').item.json.pipeline_status }}"
+            },
+            {
+              "fieldId": "search_index",
+              "fieldValue": "={{ $json[\"73\"] }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        2096,
+        1808
+      ],
+      "id": "ca8bef08-58c3-4317-8e11-c73275ac86a4",
+      "name": "Create a row1"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "85b2ef37-40ce-4f95-8e54-d6f991c7466f",
+              "name": "={{ $json.search_run_id }}",
+              "value": "={{ $json.search_run_id }}_{{ $itemIndex }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1840,
+        1808
+      ],
+      "id": "281bece1-7456-487b-966c-8a5b6954a6fa",
+      "name": "Edit Fields"
+    },
+    {
+      "parameters": {
+        "jsCode": "const runId = $node[\"Create a row\"].json.id;\nconst input = items[0].json;\nconst markdown = input.data?.markdown;\n\nif (!markdown) return [];\n\nconst vendorPattern = /\\[([^\\]]{3,100})\\]\\(https?:\\/\\/(?:export|www)\\.indiamart\\.com\\/company\\/([^\\/\\)\\s]+)/g;\nlet match;\nconst positions = [];\n\nwhile ((match = vendorPattern.exec(markdown)) !== null) {\n  const slug = match[2];\n  if (/^(search|category|login|register|terms|privacy|about|help|contact|products)/i.test(slug)) continue;\n  positions.push({ company_name: match[1].trim(), slug, index: match.index });\n}\n\nconst results = [];\nconst seenThisPage = new Set();\n\nfor (let i = 0; i < positions.length; i++) {\n  const { company_name, slug } = positions[i];\n  const vendorId = `indiamart_${slug}`;\n  if (seenThisPage.has(vendorId)) continue;\n  seenThisPage.add(vendorId);\n\n  const start = positions[i].index;\n  const end = positions[i + 1] ? positions[i + 1].index : markdown.length;\n  const block = markdown.substring(start, end);\n  const productMatch = block.match(/\\[([^\\]]{5,120})\\]\\(https?:\\/\\/export\\.indiamart\\.com\\/products\\/([^\\)]+)\\)/);\n  const product_name = productMatch ? productMatch[1].trim() : null;\n  const product_url = productMatch ? `https://export.indiamart.com/products/${productMatch[2]}` : null;\n\n  let price = null;\n  const visiblePriceMatch = block.match(/(?:₹|\\$)\\s?([\\d,]+(?:\\.\\d+)?)/);\n  if (visiblePriceMatch) price = visiblePriceMatch[1];\n  if (!price) {\n    const urlPriceMatch = block.match(/\\|\\|\\|\\|([\\d.]+)\\|\\|product/);\n    if (urlPriceMatch) price = urlPriceMatch[1];\n  }\n  if (price) price = price.replace(/,/g, '');\n\n  const moqMatch = block.match(/MOQ:\\s*([\\d,]+\\s*\\w+)/i);\n  const moq = moqMatch ? moqMatch[1].trim() : null;\n  const ratingMatch = block.match(/★{3,}([\\d.]+)\\(/);\n  const rating = ratingMatch ? parseFloat(ratingMatch[1]) : null;\n\n  const isNumeric = /^\\d+$/.test(slug);\n  const vendor_url = isNumeric ? `https://export.indiamart.com/company/${slug}/` : `https://www.indiamart.com/${slug}/`;\n\n  results.push({\n    json: {\n      search_run_id: runId,\n      vendor_id: vendorId,\n      product_search: input.product_search || null,\n      normalized_product: input.normalized_keyword || null,\n      fetch_datetime: new Date().toISOString(),\n      company_name,\n      vendor_url,\n      product_name,\n      product_url,\n      price,\n      moq,\n      rating,\n      source: {\n        platform: \"IndiaMART\",\n        raw_snippet: block.slice(0, 300)\n      },\n      client_id: 1,\n      pipeline_status: \"scraped_minimal\"\n    }\n  });\n}\n\nreturn results;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1424,
+        1808
+      ],
+      "id": "efd576fe-71de-4e41-9540-b9b5c388abaa",
+      "name": "Code in JavaScript1"
+    },
+    {
+      "parameters": {
+        "jsCode": "const original = $input.first().json;\nconst markdown = original.data?.markdown;\n\nif (!markdown) {\n  throw new Error(\"No markdown found\");\n}\n\nconst company_name = markdown.match(/^#\\s*(.+)/m)?.[1]?.trim() || null;\nconst location = markdown.match(/\\n([A-Za-z\\s]+,\\s*India)\\n/)?.[1]?.trim() || null;\nconst gstin = markdown.match(/\\b\\d{2}[A-Z]{5}\\d{4}[A-Z]{1}\\d[Z][A-Z\\d]\\b/)?.[0] || null;\nconst iecMatch = markdown.match(/IEC\\s+([A-Z0-9]{10})/);\nconst iec = iecMatch && /[A-Z]/.test(iecMatch[1]) ? iecMatch[1] : null;\nconst gst_reg_date = markdown.match(/GST Registration Date\\s*\\n\\n([^\\n]+)/i)?.[1]?.trim() || null;\nconst exporting_since = markdown.match(/Exporting Since\\s*([^\\n]+)/i)?.[1]?.trim() || null;\nconst ratingRaw = markdown.match(/Rating:★+([\\d.]+)/)?.[1];\nconst rating = ratingRaw ? parseFloat(ratingRaw) : null;\nconst verified_exporter = /VerifiedExporter|Verified Exporter/i.test(markdown) ? \"YES\" : null;\nconst trust_seal = /TrustSEAL/i.test(markdown) ? \"YES\" : null;\nconst established_year = markdown.match(/Established.*?(\\d{4})/)?.[1] || null;\nconst nature_of_business = markdown.match(/Nature of Business\\s*\\n\\n([^\\n]+)/i)?.[1]?.trim() || null;\nconst legal_status = markdown.match(/Legal Status of Firm\\s*\\n\\n([^\\n]+)/i)?.[1]?.trim() || null;\nconst annual_turnover = markdown.match(/Annual Turnover\\s*\\n\\n([^\\n]+)/i)?.[1]?.trim() || null;\nconst num_employees = markdown.match(/(?:Number of Employees|Employees|Workforce)\\s*\\n\\n([^\\n]+)/i)?.[1]?.trim() || null;\n\nlet company_type = markdown.match(/Business Type\\s*\\n\\n([^\\n]+)/i)?.[1]?.trim() || null;\nif (!company_type && nature_of_business) company_type = nature_of_business;\nif (!company_type) {\n  const fallback = markdown.match(/Manufacturer|Exporter|Supplier|Wholesaler/i);\n  company_type = fallback ? fallback[0] : null;\n}\n\nconst export_countries = markdown.match(/Exports?\\s*(?:To)?\\s*\\n\\n([^\\n]+)/i)?.[1]?.trim() || null;\nconst addressMatch = markdown.match(/## Contact Us[\\s\\S]*?\\n\\n([^\\n]+,\\s*[^\\n]+India)/);\nlet address = addressMatch ? addressMatch[1].trim() : null;\nif (address) {\n  const parts = address.split(',').map(p => p.trim());\n  address = [...new Set(parts)].join(', ');\n}\n\nconst contact_person = markdown.match(/Contact Person[:\\s]*([^\\n]+)/i)?.[1]?.trim() || null;\nlet phone = null;\nconst phoneMatches = markdown.match(/(\\+91[\\s-]?\\d{10}|\\b\\d{10}\\b)/g);\nif (phoneMatches) {\n  phone = phoneMatches.find(p => p.replace(/\\D/g, '').length === 10) || null;\n}\nconst email = markdown.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\\.[A-Z]{2,}/i)?.[0] || null;\n\nconst normalize = str => str.toLowerCase().replace(/[^a-z0-9]/g, '');\nconst productMatches = [...markdown.matchAll(/\\[([^\\]]+)\\]\\(https:\\/\\/export\\.indiamart\\.com\\/products\\/\\?id=\\d+\\)/g)];\nconst products = [...new Map(productMatches.map(p => [normalize(p[1]), p[1].trim()])).values()];\n\nreturn [\n  {\n    json: {\n      search_run_id: $('Code in JavaScript2').first().json.search_run_id,\n      vendor_id: $('Code in JavaScript2').first().json.vendor_id,\n      company_name,\n      location,\n      gstin,\n      iec,\n      gst_reg_date,\n      exporting_since,\n      established_year,\n      nature_of_business,\n      legal_status,\n      annual_turnover,\n      num_employees,\n      company_type,\n      export_countries,\n      rating,\n      verified_exporter,\n      trust_seal,\n      address,\n      contact_person,\n      phone,\n      email,\n      products,\n      pipeline_status: \"enriched\"\n    }\n  }\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2064,
+        1520
+      ],
+      "id": "a1918b06-1f17-4855-beed-934baf2973fb",
+      "name": "Code in JavaScript3"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "tableId": "vendors",
+        "matchType": "allFilters",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "search_run_id",
+              "condition": "eq",
+              "keyValue": "={{ $json.search_run_id }}"
+            },
+            {
+              "keyName": "vendor_id",
+              "condition": "eq",
+              "keyValue": "={{ $json.vendor_id }}"
+            }
+          ]
+        },
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "search_run_id",
+              "fieldValue": "={{ $('Code in JavaScript2').item.json.search_run_id }}"
+            },
+            {
+              "fieldId": "vendor_id",
+              "fieldValue": "={{ $('Code in JavaScript2').item.json.vendor_id }}"
+            },
+            {
+              "fieldId": "location",
+              "fieldValue": "={{ $json.location }}"
+            },
+            {
+              "fieldId": "gstin",
+              "fieldValue": "={{ $json.gstin }}"
+            },
+            {
+              "fieldId": "iec",
+              "fieldValue": "={{ $json.iec }}"
+            },
+            {
+              "fieldId": "gst_reg_date",
+              "fieldValue": "={{ $json.gst_reg_date }}"
+            },
+            {
+              "fieldId": "exporting_since",
+              "fieldValue": "={{ $json.exporting_since }}"
+            },
+            {
+              "fieldId": "established_year",
+              "fieldValue": "={{ $json.established_year }}"
+            },
+            {
+              "fieldId": "nature_of_business",
+              "fieldValue": "={{ $json.nature_of_business }}"
+            },
+            {
+              "fieldId": "legal_status",
+              "fieldValue": "={{ $json.legal_status }}"
+            },
+            {
+              "fieldId": "annual_turnover",
+              "fieldValue": "={{ $json.annual_turnover }}"
+            },
+            {
+              "fieldId": "verified_exporter",
+              "fieldValue": "={{ $json.verified_exporter }}"
+            },
+            {
+              "fieldId": "trust_seal",
+              "fieldValue": "={{ $json.trust_seal }}"
+            },
+            {
+              "fieldId": "address",
+              "fieldValue": "={{ $json.address }}"
+            },
+            {
+              "fieldId": "pipeline_status",
+              "fieldValue": "={{ $json.pipeline_status }}"
+            },
+            {
+              "fieldId": "contact_person",
+              "fieldValue": "={{ $json.contact_person }}"
+            },
+            {
+              "fieldId": "phone",
+              "fieldValue": "={{ $json.phone }}"
+            },
+            {
+              "fieldId": "email",
+              "fieldValue": "={{ $json.email }}"
+            },
+            {
+              "fieldId": "num_employees",
+              "fieldValue": "={{ $json.num_employees }}"
+            },
+            {
+              "fieldId": "export_countries",
+              "fieldValue": "={{ $json.export_countries }}"
+            },
+            {
+              "fieldId": "company_type",
+              "fieldValue": "={{ $json.company_type }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        2256,
+        1520
+      ],
+      "id": "87f54fb5-92f3-4485-80f2-b2fbd87f95b1",
+      "name": "Update a row"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.noOp",
+      "name": "Replace Me1",
+      "typeVersion": 1,
+      "position": [
+        2448,
+        1520
+      ],
+      "id": "6e74dd09-c15b-4885-a3d5-ed9dc05d05b9"
+    },
+    {
+      "parameters": {
+        "options": {
+          "reset": false
+        }
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        992,
+        1504
+      ],
+      "id": "6a13eadf-b04c-4f65-9726-c9d619d641ce",
+      "name": "Loop Over Items1"
+    },
+    {
+      "parameters": {
+        "jsCode": "const seen = new Set();\n\nreturn items\n  .filter(item => item.json.vendor_url)\n  .filter(item => {\n    if (seen.has(item.json.vendor_url)) return false;\n    seen.add(item.json.vendor_url);\n    return true;\n  })\n  .map(item => ({\n    json: {\n      vendor_url: item.json.vendor_url,\n      vendor_id: item.json.vendor_id,\n      search_run_id: item.json.search_run_id\n    }\n  }));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1504,
+        1520
+      ],
+      "id": "98b98ac6-2108-4b50-bfb9-0e9ac99f44ab",
+      "name": "Code in JavaScript2"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.firecrawl.dev/v1/scrape",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer <redacted>"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"url\": \"{{ $json.vendor_url }}\",\n  \"formats\": [\"markdown\"],\n  \"onlyMainContent\": false\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1824,
+        1520
+      ],
+      "id": "1a242bf1-f17f-42ef-bfef-91e691fe802c",
+      "name": "FlameCrawl Scrapper (Vendor Details)"
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "vendors",
+        "limit": 50000000,
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "search_run_id",
+              "condition": "eq",
+              "keyValue": "={{ $json.search_run_id }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        1280,
+        1312
+      ],
+      "id": "9e2aca43-d236-465b-a19b-e5e36645fb53",
+      "name": "Get many rows1"
+    },
+    {
+      "parameters": {
+        "jsCode": "const seen = new Set();\n\nreturn items\n  .filter(item => item.json.vendor_url)\n  .filter(item => {\n    if (seen.has(item.json.vendor_url)) return false;\n    seen.add(item.json.vendor_url);\n    return true;\n  })\n  .slice(0, 5)\n  .map(item => ({\n    json: {\n      vendor_url: item.json.vendor_url,\n      vendor_id: item.json.vendor_id,\n      search_run_id: item.json.search_run_id\n    }\n  }));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        736,
+        1504
+      ],
+      "id": "647dc011-c618-4e9b-9885-505df5cc046b",
+      "name": "Code in JavaScript4"
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\n\nreturn items\n  .filter(item => item.json.vendor_id)\n  .slice(0, 5);"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1648,
+        1808
+      ],
+      "id": "9b4991c8-23fd-40db-bd3a-0af5acbedce0",
+      "name": "Code in JavaScript5"
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Message a model",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Message a model": {
+      "main": [
+        [
+          {
+            "node": "Parse Input1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Input1": {
+      "main": [
+        [
+          {
+            "node": "Create a row",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create a row": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Items": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript4",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "FlameCrawl Scrapper (Product Details)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Replace Me": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "FlameCrawl Scrapper (Product Details)": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields": {
+      "main": [
+        [
+          {
+            "node": "Create a row1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript1": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript5",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create a row1": {
+      "main": [
+        [
+          {
+            "node": "Replace Me",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript3": {
+      "main": [
+        [
+          {
+            "node": "Update a row",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update a row": {
+      "main": [
+        [
+          {
+            "node": "Replace Me1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Replace Me1": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Items1": {
+      "main": [
+        [
+          {
+            "node": "Get many rows1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Code in JavaScript2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript2": {
+      "main": [
+        [
+          {
+            "node": "FlameCrawl Scrapper (Vendor Details)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "FlameCrawl Scrapper (Vendor Details)": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get many rows1": {
+      "main": [
+        []
+      ]
+    },
+    "Code in JavaScript4": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript5": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}

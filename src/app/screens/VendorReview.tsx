@@ -2,7 +2,11 @@ import { useEffect, useMemo, useState } from 'react';
 import { ArrowLeft, Search, Trophy, Calendar, ChevronDown, ExternalLink, MapPin, Globe } from 'lucide-react';
 import { Card, EmptyState, SectionLabel, Title, cn } from '../components/ui/Shared';
 import { supabase } from '../lib/supabase';
+<<<<<<< HEAD
 import { useSidebar } from '../components/ui/sidebar';
+=======
+import { useSidebar } from '@/app/components/ui/sidebar';
+>>>>>>> 9af41d47 (Fix Sidebar context issue and standardize imports)
 import { format } from 'date-fns';
 
 type Decision = 'selected' | 'rejected' | 'considerable';

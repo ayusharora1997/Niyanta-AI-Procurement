@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+<<<<<<< HEAD
 import { hasSupabaseConfig, searchRunsTable, supabase, vendorRunIdColumn, vendorSummaryColumn, vendorsTable } from '../lib/supabase';
 
 export type SearchProgressStatus = 'initiated' | 'scraping' | 'scoring' | 'completed' | 'failed';
@@ -132,10 +133,117 @@ export function useSearchProgress(searchRunId: string | null, totalHint = 0) {
       setProgress({
         status: normalizeStatus(runData.status),
         total: totalFromRun > 0 ? totalFromRun : (vendorCount ?? 0),
+=======
+import { hasSupabaseConfig, supabase } from '../lib/supabase';
+
+export type SearchRunStatus = 'initiated' | 'scraping' | 'scoring' | 'completed' | 'failed';
+
+export type SearchProgressSnapshot = {
+  status: SearchRunStatus;
+  total: number;
+  enriched: number;
+};
+
+const defaultSnapshot: SearchProgressSnapshot = {
+  status: 'initiated',
+  total: 0,
+  enriched: 0,
+};
+
+function isSearchRunStatus(value: unknown): value is SearchRunStatus {
+  return value === 'initiated'
+    || value === 'scraping'
+    || value === 'scoring'
+    || value === 'completed'
+    || value === 'failed';
+}
+
+export function useSearchProgress(searchRunId: string | null, totalHint = 0) {
+  const [progress, setProgress] = useState<SearchProgressSnapshot>({
+    ...defaultSnapshot,
+    total: totalHint,
+  });
+
+  useEffect(() => {
+    if (!searchRunId) {
+      setProgress({
+        ...defaultSnapshot,
+        total: totalHint,
+      });
+      return;
+    }
+
+    if (!hasSupabaseConfig || !supabase) {
+      setProgress({
+        status: 'initiated',
+        total: totalHint,
+        enriched: 0,
+      });
+      return;
+    }
+
+    let alive = true;
+
+    const fetchProgress = async () => {
+      const numericRunId = /^\d+$/.test(searchRunId) ? Number(searchRunId) : null;
+
+      let searchRunQuery = supabase
+        .from('search_runs')
+        .select('id, status, vendor_count_requested, run_id')
+        .eq('run_id', searchRunId)
+        .maybeSingle();
+
+      if (numericRunId !== null) {
+        searchRunQuery = supabase
+          .from('search_runs')
+          .select('id, status, vendor_count_requested, run_id')
+          .eq('id', numericRunId)
+          .maybeSingle();
+      }
+
+      const { data: searchRun, error: searchRunError } = await searchRunQuery;
+
+      if (searchRunError) {
+        throw searchRunError;
+      }
+
+      if (!searchRun) {
+        return;
+      }
+
+      const [{ count: totalCount, error: totalError }, { count: enrichedCount, error: enrichedError }] = await Promise.all([
+        supabase
+          .from('vendors')
+          .select('id', { count: 'exact', head: true })
+          .eq('search_run_id', searchRun.id),
+        supabase
+          .from('vendors')
+          .select('id', { count: 'exact', head: true })
+          .eq('search_run_id', searchRun.id)
+          .eq('pipeline_status', 'enriched'),
+      ]);
+
+      if (totalError) {
+        throw totalError;
+      }
+
+      if (enrichedError) {
+        throw enrichedError;
+      }
+
+      if (!alive) {
+        return;
+      }
+
+      setProgress({
+        status: isSearchRunStatus(searchRun.status) ? searchRun.status : 'initiated',
+        total: totalCount ?? Number(searchRun.vendor_count_requested ?? totalHint ?? 0),
+>>>>>>> 9af41d47 (Fix Sidebar context issue and standardize imports)
         enriched: enrichedCount ?? 0,
       });
     };
 
+<<<<<<< HEAD
     void fetchSnapshot();
 
     const channel = supabase
@@ -145,19 +253,50 @@ export function useSearchProgress(searchRunId: string | null, totalHint = 0) {
         { event: '*', schema: 'public', table: searchRunsTable, filter: `run_id=eq.${searchRunId}` },
         () => {
           void fetchSnapshot();
+=======
+    void fetchProgress();
+
+    const channel = supabase
+      .channel(`search-progress-${searchRunId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'search_runs',
+          filter: /^\d+$/.test(searchRunId) ? `id=eq.${searchRunId}` : `run_id=eq.${searchRunId}`,
+        },
+        () => {
+          void fetchProgress();
+>>>>>>> 9af41d47 (Fix Sidebar context issue and standardize imports)
         },
       )
       .on(
         'postgres_changes',
+<<<<<<< HEAD
         { event: '*', schema: 'public', table: vendorsTable, filter: `${vendorRunIdColumn}=eq.${searchRunId}` },
         () => {
           void fetchSnapshot();
+=======
+        {
+          event: '*',
+          schema: 'public',
+          table: 'vendors',
+          filter: /^\d+$/.test(searchRunId) ? `search_run_id=eq.${searchRunId}` : '',
+        },
+        () => {
+          void fetchProgress();
+>>>>>>> 9af41d47 (Fix Sidebar context issue and standardize imports)
         },
       )
       .subscribe();
 
     return () => {
+<<<<<<< HEAD
       isMounted = false;
+=======
+      alive = false;
+>>>>>>> 9af41d47 (Fix Sidebar context issue and standardize imports)
       void supabase.removeChannel(channel);
     };
   }, [searchRunId, totalHint]);
