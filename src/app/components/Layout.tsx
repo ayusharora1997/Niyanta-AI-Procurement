@@ -16,10 +16,7 @@ import {
   User,
 } from 'lucide-react';
 import { cn } from './ui/Shared';
-<<<<<<< HEAD
-=======
 import { useSidebar } from '@/app/components/ui/sidebar';
->>>>>>> 9af41d47 (Fix Sidebar context issue and standardize imports)
 
 interface LayoutProps {
   children: ReactNode;
@@ -76,10 +73,6 @@ const modules: Array<{ key: ModuleContext; title: string; description: string }>
 ];
 
 export function Layout({ children }: LayoutProps) {
-<<<<<<< HEAD
-  const location = useLocation();
-  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
-=======
   const { state, setOpen, toggleSidebar } = useSidebar();
   const isSidebarCollapsed = state === "collapsed";
   const setIsSidebarCollapsed = (val: boolean | ((p: boolean) => boolean)) => {
@@ -91,7 +84,6 @@ export function Layout({ children }: LayoutProps) {
   };
 
   const location = useLocation();
->>>>>>> 9af41d47 (Fix Sidebar context issue and standardize imports)
   const [isDiscoveryOpen, setIsDiscoveryOpen] = useState(location.pathname.startsWith('/discovery'));
   const [selectedModule, setSelectedModule] = useState<ModuleContext>('Procurement');
   const [isModuleListOpen, setIsModuleListOpen] = useState(false);
@@ -274,11 +266,7 @@ export function Layout({ children }: LayoutProps) {
 
         <button
           type="button"
-<<<<<<< HEAD
-          onClick={() => setIsSidebarCollapsed((prev) => !prev)}
-=======
           onClick={toggleSidebar}
->>>>>>> 9af41d47 (Fix Sidebar context issue and standardize imports)
           title={isSidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
           className="absolute right-[-18px] top-1/2 z-40 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full border border-white/15 bg-[#121212] text-white shadow-[0_10px_24px_rgba(0,0,0,0.35)] transition hover:bg-[#1a1a1a]"
         >

@@ -2,11 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { ArrowLeft, Search, Trophy, Calendar, ChevronDown, ExternalLink, MapPin, Globe } from 'lucide-react';
 import { Card, EmptyState, SectionLabel, Title, cn } from '../components/ui/Shared';
 import { supabase } from '../lib/supabase';
-<<<<<<< HEAD
-import { useSidebar } from '../components/ui/sidebar';
-=======
 import { useSidebar } from '@/app/components/ui/sidebar';
->>>>>>> 9af41d47 (Fix Sidebar context issue and standardize imports)
 import { format } from 'date-fns';
 
 type Decision = 'selected' | 'rejected' | 'considerable';
@@ -76,10 +72,10 @@ export function VendorReview() {
       const reviewedIds = Object.keys(decisions).map(Number);
       const reviewedCount = list.filter(v => reviewedIds.includes(v.id)).length;
       const scoredVendors = list.filter(v => (v.score || 0) > 0);
-      const avgScore = scoredVendors.length > 0 
-        ? scoredVendors.reduce((sum, v) => sum + v.score, 0) / scoredVendors.length 
+      const avgScore = scoredVendors.length > 0
+        ? scoredVendors.reduce((sum, v) => sum + v.score, 0) / scoredVendors.length
         : 0;
-      
+
       return {
         keyword,
         fetchTime: list[0]?.fetch_datetime,
@@ -107,8 +103,8 @@ export function VendorReview() {
   if (selectedGroup) {
     const groupData = groups.find(g => g.keyword === selectedGroup);
     return (
-      <DetailView 
-        group={groupData!} 
+      <DetailView
+        group={groupData!}
         onBack={() => setSelectedGroup(null)}
         decisions={decisions}
         onDecision={(id, d) => setDecisions(prev => ({ ...prev, [id]: d }))}
@@ -147,15 +143,15 @@ export function VendorReview() {
           <div className="col-span-4 text-center">Batch Status</div>
           <div className="col-span-1" />
         </div>
-        
+
         <div className="flex flex-col gap-2">
           {groups.map((group) => (
-            <GroupSummaryRow 
-              key={group.keyword} 
-              group={group} 
+            <GroupSummaryRow
+              key={group.keyword}
+              group={group}
               decisions={decisions}
               onDecision={(id, d) => setDecisions(prev => ({ ...prev, [id]: d }))}
-              onViewDetail={() => setSelectedGroup(group.keyword)} 
+              onViewDetail={() => setSelectedGroup(group.keyword)}
             />
           ))}
         </div>
@@ -164,11 +160,11 @@ export function VendorReview() {
   );
 }
 
-function GroupSummaryRow({ group, decisions, onDecision, onViewDetail }: { 
-  group: GroupedData; 
+function GroupSummaryRow({ group, decisions, onDecision, onViewDetail }: {
+  group: GroupedData;
   decisions: Record<number, Decision>;
   onDecision: (id: number, d: Decision) => void;
-  onViewDetail: () => void 
+  onViewDetail: () => void
 }) {
   const [isExpanded, setIsExpanded] = useState(false);
   const top3 = [...group.vendors]
@@ -177,7 +173,7 @@ function GroupSummaryRow({ group, decisions, onDecision, onViewDetail }: {
 
   return (
     <div className="group border border-slate-200 bg-white rounded-lg transition-all hover:border-slate-300 overflow-hidden">
-      <div 
+      <div
         onClick={() => setIsExpanded(!isExpanded)}
         className="grid grid-cols-12 items-center px-6 py-4 cursor-pointer hover:bg-slate-50/50 transition-colors"
       >
@@ -188,12 +184,12 @@ function GroupSummaryRow({ group, decisions, onDecision, onViewDetail }: {
           <div>
             <h3 className="text-[14px] font-semibold text-slate-900 truncate max-w-[240px]">{group.keyword}</h3>
             <div className="flex items-center gap-2 mt-0.5">
-               <span className="text-[10px] items-center gap-1 font-bold text-emerald-600 bg-emerald-50 px-1.5 rounded flex">
-                  Best Score: {top3[0]?.score?.toFixed(1)}
-               </span>
-               <span className="text-[10px] items-center gap-1 font-bold text-blue-600 bg-blue-50 px-1.5 rounded flex">
-                  Avg Score: {group.avgScore.toFixed(1)}
-               </span>
+              <span className="text-[10px] items-center gap-1 font-bold text-emerald-600 bg-emerald-50 px-1.5 rounded flex">
+                Best Score: {top3[0]?.score?.toFixed(1)}
+              </span>
+              <span className="text-[10px] items-center gap-1 font-bold text-blue-600 bg-blue-50 px-1.5 rounded flex">
+                Avg Score: {group.avgScore.toFixed(1)}
+              </span>
             </div>
           </div>
         </div>
@@ -236,12 +232,12 @@ function GroupSummaryRow({ group, decisions, onDecision, onViewDetail }: {
                       <div className="h-7 w-12 flex items-center justify-center bg-slate-100 rounded text-[13px] font-black text-slate-900 border border-slate-200">
                         {v.score?.toFixed(1)}
                       </div>
-                      
+
                       {decision ? (
                         <div className={cn(
                           "min-w-[80px] text-center text-[10px] font-black uppercase tracking-widest px-2 py-1 rounded border",
                           decision === 'selected' ? "bg-emerald-50 text-emerald-600 border-emerald-100" :
-                          decision === 'rejected' ? "bg-red-50 text-red-600 border-red-100" : "bg-amber-50 text-amber-600 border-amber-100"
+                            decision === 'rejected' ? "bg-red-50 text-red-600 border-red-100" : "bg-amber-50 text-amber-600 border-amber-100"
                         )}>
                           {decision}
                         </div>
@@ -258,7 +254,7 @@ function GroupSummaryRow({ group, decisions, onDecision, onViewDetail }: {
               })}
             </div>
           </div>
-          <button 
+          <button
             onClick={(e) => { e.stopPropagation(); onViewDetail(); }}
             className="w-full flex items-center justify-center gap-2 py-2 text-[12px] font-bold text-slate-600 border border-slate-200 bg-white rounded-md hover:bg-slate-50 transition-colors group"
           >
@@ -278,7 +274,7 @@ function MiniActionButton({ label, color, onClick }: { label: string; color: str
     red: "bg-red-50 text-red-700 hover:bg-red-100 border-red-200"
   };
   return (
-    <button 
+    <button
       onClick={(e) => { e.stopPropagation(); onClick(); }}
       className={cn("px-2 py-1 rounded text-[10px] font-bold border transition-colors", (styles as any)[color])}
     >
@@ -290,27 +286,27 @@ function MiniActionButton({ label, color, onClick }: { label: string; color: str
 function StatusMetric({ label, value, isAlert = false }: { label: string; value: string | number; isAlert?: boolean }) {
   return (
     <div className="flex flex-col items-center min-w-[100px]">
-       <div className={cn("text-[14px] font-bold", isAlert ? "text-slate-900" : "text-slate-500")}>{value}</div>
-       <div className="text-[9px] font-bold text-slate-400 tracking-widest mt-0.5 text-center">{label}</div>
+      <div className={cn("text-[14px] font-bold", isAlert ? "text-slate-900" : "text-slate-500")}>{value}</div>
+      <div className="text-[9px] font-bold text-slate-400 tracking-widest mt-0.5 text-center">{label}</div>
     </div>
   );
 }
 
-function DetailView({ group, onBack, decisions, onDecision }: { 
-  group: GroupedData, 
-  onBack: () => void, 
+function DetailView({ group, onBack, decisions, onDecision }: {
+  group: GroupedData,
+  onBack: () => void,
   decisions: Record<number, Decision>,
-  onDecision: (id: number, d: Decision) => void 
+  onDecision: (id: number, d: Decision) => void
 }) {
   const { state } = useSidebar();
   const unreviewedVendors = group.vendors.filter(v => !decisions[v.id]);
   const reviewedVendorsCount = group.counts.reviewed;
   const totalVendors = group.counts.total;
-  
+
   return (
     <div className="space-y-4 animate-in fade-in duration-300">
       <div className="flex items-center justify-between border-b border-slate-200 pb-3">
-        <button 
+        <button
           onClick={onBack}
           className="flex items-center gap-1.5 text-[10px] font-bold text-slate-500 hover:text-slate-900 transition-colors uppercase tracking-wider"
         >
@@ -318,13 +314,13 @@ function DetailView({ group, onBack, decisions, onDecision }: {
           Back to list
         </button>
         <div className="flex items-center gap-3">
-           <div className="flex flex-col items-end">
-              <span className="text-[8px] font-bold text-slate-400 uppercase tracking-widest leading-none mb-0.5">Vetting Status</span>
-              <span className="text-[11px] font-bold text-slate-900 tracking-tight leading-none">{reviewedVendorsCount}/{totalVendors}</span>
-           </div>
-           <div className="h-6 w-6 flex items-center justify-center rounded-full bg-slate-900 text-white text-[9px] font-bold shadow-sm">
-              {totalVendors > 0 ? Math.round((reviewedVendorsCount / totalVendors) * 100) : 0}%
-           </div>
+          <div className="flex flex-col items-end">
+            <span className="text-[8px] font-bold text-slate-400 uppercase tracking-widest leading-none mb-0.5">Vetting Status</span>
+            <span className="text-[11px] font-bold text-slate-900 tracking-tight leading-none">{reviewedVendorsCount}/{totalVendors}</span>
+          </div>
+          <div className="h-6 w-6 flex items-center justify-center rounded-full bg-slate-900 text-white text-[9px] font-bold shadow-sm">
+            {totalVendors > 0 ? Math.round((reviewedVendorsCount / totalVendors) * 100) : 0}%
+          </div>
         </div>
       </div>
 
@@ -334,9 +330,9 @@ function DetailView({ group, onBack, decisions, onDecision }: {
       </div>
 
       {unreviewedVendors.length === 0 ? (
-        <EmptyState 
-          title="Audit Complete" 
-          description="You've reviewed every vendor for this keyword. All selected vendors have been queued for Master List." 
+        <EmptyState
+          title="Audit Complete"
+          description="You've reviewed every vendor for this keyword. All selected vendors have been queued for Master List."
         />
       ) : (
         <div className={cn(
@@ -344,9 +340,9 @@ function DetailView({ group, onBack, decisions, onDecision }: {
           state === 'expanded' ? "grid-cols-1 md:grid-cols-3" : "grid-cols-1 md:grid-cols-4"
         )}>
           {unreviewedVendors.map((vendor) => (
-            <VendorDetailCard 
-              key={vendor.id} 
-              vendor={vendor} 
+            <VendorDetailCard
+              key={vendor.id}
+              vendor={vendor}
               onDecision={(d) => onDecision(vendor.id, d)}
             />
           ))}
@@ -360,7 +356,7 @@ function DetailView({ group, onBack, decisions, onDecision }: {
 function VendorDetailCard({ vendor, onDecision }: { vendor: VendorDB, onDecision: (d: Decision) => void }) {
   const risk = (vendor.risk || 'Medium').toLowerCase();
   const riskColor = risk === 'low' ? 'emerald' : risk === 'high' ? 'red' : 'amber';
-  
+
   const scoreColors = {
     emerald: "bg-emerald-50 text-emerald-700 border-emerald-200",
     amber: "bg-amber-50 text-amber-700 border-amber-200",
@@ -413,14 +409,14 @@ function VendorDetailCard({ vendor, onDecision }: { vendor: VendorDB, onDecision
               {vendor.risk_summary || 'No risk signals found in intelligence audit.'}
             </p>
           </div>
-          
+
           <div className="bg-blue-50/20 rounded-md p-3 border border-blue-100/50 relative">
             <div className="flex items-center justify-between mb-2">
               <span className="text-[10px] font-bold text-slate-400 tracking-widest">Market Sentiment</span>
               <span className={cn(
                 "text-[9px] font-black uppercase px-2 py-0.5 rounded border",
-                vendor.Sentiment?.toLowerCase().includes('positive') ? "bg-emerald-50 text-emerald-600 border-emerald-100" : 
-                vendor.Sentiment?.toLowerCase().includes('negative') ? "bg-red-50 text-red-600 border-red-100" : "bg-slate-50 text-slate-600 border-slate-200"
+                vendor.Sentiment?.toLowerCase().includes('positive') ? "bg-emerald-50 text-emerald-600 border-emerald-100" :
+                  vendor.Sentiment?.toLowerCase().includes('negative') ? "bg-red-50 text-red-600 border-red-100" : "bg-slate-50 text-slate-600 border-slate-200"
               )}>
                 {vendor.Sentiment || 'Neutral'}
               </span>
@@ -433,9 +429,9 @@ function VendorDetailCard({ vendor, onDecision }: { vendor: VendorDB, onDecision
 
         <div className="mt-auto pt-4">
           <div className="flex items-center justify-between gap-4 mb-4">
-            <a 
-              href={vendor.google_maps_link} 
-              target="_blank" 
+            <a
+              href={vendor.google_maps_link}
+              target="_blank"
               rel="noreferrer"
               className="flex items-center gap-1.5 text-[11px] font-bold text-slate-600 hover:text-slate-900 transition-colors"
             >
@@ -443,9 +439,9 @@ function VendorDetailCard({ vendor, onDecision }: { vendor: VendorDB, onDecision
               Show on maps
             </a>
             {vendor.website && (
-              <a 
-                href={vendor.website} 
-                target="_blank" 
+              <a
+                href={vendor.website}
+                target="_blank"
                 rel="noreferrer"
                 className="flex items-center gap-1.5 text-[11px] font-bold text-slate-600 hover:text-slate-900 transition-colors"
               >
@@ -454,20 +450,20 @@ function VendorDetailCard({ vendor, onDecision }: { vendor: VendorDB, onDecision
               </a>
             )}
           </div>
-          
+
           <div className="grid grid-cols-3 gap-3">
-            <DetailActionButton 
-              label="Select" 
+            <DetailActionButton
+              label="Select"
               className="bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200"
               onClick={() => onDecision('selected')}
             />
-            <DetailActionButton 
-              label="Hold" 
+            <DetailActionButton
+              label="Hold"
               className="bg-amber-50 text-amber-700 hover:bg-amber-100 border border-amber-200"
               onClick={() => onDecision('considerable')}
             />
-            <DetailActionButton 
-              label="Reject" 
+            <DetailActionButton
+              label="Reject"
               className="bg-red-50 text-red-700 hover:bg-red-100 border border-red-200"
               onClick={() => onDecision('rejected')}
             />
@@ -481,9 +477,9 @@ function VendorDetailCard({ vendor, onDecision }: { vendor: VendorDB, onDecision
 
 function DetailActionButton({ label, className, onClick }: { label: string; className: string; onClick: () => void }) {
   return (
-    <button 
-      type="button" 
-      onClick={onClick} 
+    <button
+      type="button"
+      onClick={onClick}
       className={cn(
         "flex grow items-center justify-center h-10 rounded-md text-[11px] font-bold transition-all active:scale-[0.98]",
         className

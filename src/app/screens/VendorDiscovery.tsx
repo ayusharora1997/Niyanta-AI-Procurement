@@ -2,17 +2,10 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router';
 import { CheckCircle2, Download, FileText, Loader2, Upload } from 'lucide-react';
 import { SearchStatusProgress } from '../components/SearchStatusProgress';
-<<<<<<< HEAD
-import { useSearchProgress, type SearchProgressStatus } from '../hooks/useSearchProgress';
-import { Card, PrimaryButton, SectionLabel, Title } from '../components/ui/Shared';
-import { mockSearches } from '../data/mockVendors';
-import { useDiscoveryStats } from '../hooks/useDiscoveryStats';
-=======
 import { Card, PrimaryButton, SectionLabel, Title } from '../components/ui/Shared';
 import { mockSearches } from '../data/mockVendors';
 import { useDiscoveryStats } from '../hooks/useDiscoveryStats';
 import { useSearchProgress } from '../hooks/useSearchProgress';
->>>>>>> 9af41d47 (Fix Sidebar context issue and standardize imports)
 
 const progressSteps = [
   { label: 'Searching IndiaMART...', progress: 28 },
@@ -22,34 +15,11 @@ const progressSteps = [
 ];
 
 const discoverySources = ['IndiaMart', 'TradeIndia', 'Udaan', 'Moglix'];
-<<<<<<< HEAD
-=======
 
->>>>>>> 9af41d47 (Fix Sidebar context issue and standardize imports)
 const KEYWORD_WEBHOOK_URL = import.meta.env.DEV
   ? '/webhook-test/start-discovery'
   : 'https://n8n-production-11c9.up.railway.app/webhook-test/start-discovery';
 
-<<<<<<< HEAD
-function resolveRunId(payload: unknown) {
-  if (!payload || typeof payload !== 'object') return null;
-
-  const record = payload as Record<string, unknown>;
-  const directRunId = typeof record.run_id === 'string' ? record.run_id : null;
-  const directId = typeof record.id === 'string' ? record.id : null;
-
-  if (directRunId) return directRunId;
-  if (directId) return directId;
-
-  const nested = record.data;
-  if (!nested || typeof nested !== 'object') return null;
-
-  const nestedRecord = nested as Record<string, unknown>;
-  const nestedRunId = typeof nestedRecord.run_id === 'string' ? nestedRecord.run_id : null;
-  const nestedId = typeof nestedRecord.id === 'string' ? nestedRecord.id : null;
-
-  return nestedRunId ?? nestedId ?? null;
-=======
 function resolveRunId(payload: unknown): string | null {
   if (!payload || typeof payload !== 'object') {
     return null;
@@ -73,7 +43,6 @@ function resolveRunId(payload: unknown): string | null {
   }
 
   return null;
->>>>>>> 9af41d47 (Fix Sidebar context issue and standardize imports)
 }
 
 export function VendorDiscovery() {
@@ -81,43 +50,6 @@ export function VendorDiscovery() {
   const [rfqName, setRfqName] = useState('Q2 Packaging RFQ.pdf');
   const [rfqCount, setRfqCount] = useState(5);
   const [keywordCount, setKeywordCount] = useState(5);
-<<<<<<< HEAD
-  const [rfqStatus, setRfqStatus] = useState<'idle' | 'running' | 'complete'>('idle');
-  const [keywordStatus, setKeywordStatus] = useState<'idle' | SearchProgressStatus>('idle');
-  const [keywordWebhookError, setKeywordWebhookError] = useState<string | null>(null);
-  const [keywordRunId, setKeywordRunId] = useState<string | null>(null);
-  const [rfqStepIndex, setRfqStepIndex] = useState(0);
-  const [keywordProgressKey, setKeywordProgressKey] = useState<string | null>(null);
-
-  const keywordProgress = useSearchProgress(keywordRunId ?? keywordProgressKey, keywordCount);
-  const keywordProgressSnapshot = useMemo(() => {
-    if (keywordRunId) {
-      return keywordProgress;
-    }
-
-    if (keywordStatus === 'failed') {
-      return {
-        status: 'failed' as const,
-        enriched: 0,
-        total: keywordCount,
-      };
-    }
-
-    if (keywordStatus === 'initiated') {
-      return {
-        status: 'initiated' as const,
-        enriched: 0,
-        total: keywordCount,
-      };
-    }
-
-    return null;
-  }, [keywordCount, keywordProgress, keywordRunId, keywordStatus]);
-
-  const keywordSearchActive = keywordStatus === 'initiated'
-    || (keywordRunId !== null && keywordProgress.status !== 'completed' && keywordProgress.status !== 'failed');
-
-=======
   const [selectedSources, setSelectedSources] = useState<string[]>(discoverySources);
   const [rfqStatus, setRfqStatus] = useState<'idle' | 'running' | 'complete'>('idle');
   const [keywordSearchStarted, setKeywordSearchStarted] = useState(false);
@@ -125,7 +57,6 @@ export function VendorDiscovery() {
   const [keywordRunId, setKeywordRunId] = useState<string | null>(null);
   const [rfqStepIndex, setRfqStepIndex] = useState(0);
   const keywordProgress = useSearchProgress(keywordRunId, keywordCount);
->>>>>>> 9af41d47 (Fix Sidebar context issue and standardize imports)
   const discoveryStats = useDiscoveryStats({
     totalSearchesRun: mockSearches.length,
     totalVendorsDiscovered: mockSearches.reduce((sum, search) => sum + search.vendorsFound, 0),
@@ -134,8 +65,6 @@ export function VendorDiscovery() {
       : mockSearches.reduce((sum, search) => sum + search.vendorsFound, 0) / mockSearches.length,
   });
 
-<<<<<<< HEAD
-=======
   const keywordProgressSnapshot = useMemo(() => {
     if (keywordWebhookError) {
       return {
@@ -165,7 +94,6 @@ export function VendorDiscovery() {
     && keywordProgressSnapshot.status !== 'completed'
     && keywordProgressSnapshot.status !== 'failed';
 
->>>>>>> 9af41d47 (Fix Sidebar context issue and standardize imports)
   const downloadRfqTemplate = () => {
     const csv = [
       'Item Name,Category,Quantity,Unit,Preferred Region,Required Certifications,Target Price',
@@ -183,8 +111,6 @@ export function VendorDiscovery() {
     URL.revokeObjectURL(url);
   };
 
-<<<<<<< HEAD
-=======
   const toggleSource = (source: string) => {
     setSelectedSources((prev) => {
       if (prev.includes(source)) {
@@ -194,32 +120,20 @@ export function VendorDiscovery() {
     });
   };
 
->>>>>>> 9af41d47 (Fix Sidebar context issue and standardize imports)
   const startKeywordSearch = async () => {
     const keywordValue = keyword.trim();
     const vendorCount = keywordCount;
     if (!keywordValue) return;
 
-<<<<<<< HEAD
-    setKeywordWebhookError(null);
-    setKeywordRunId(null);
-    setKeywordProgressKey(`search-${Date.now()}`);
-    setKeywordStatus('initiated');
-=======
     setKeywordSearchStarted(true);
     setKeywordWebhookError(null);
     setKeywordRunId(null);
->>>>>>> 9af41d47 (Fix Sidebar context issue and standardize imports)
 
     try {
       const payload = {
         keyword: keywordValue,
         vendor_count_requested: vendorCount,
-<<<<<<< HEAD
-        sources: discoverySources,
-=======
         sources: selectedSources,
->>>>>>> 9af41d47 (Fix Sidebar context issue and standardize imports)
         source_type: 'keyword',
       };
 
@@ -232,38 +146,21 @@ export function VendorDiscovery() {
       });
 
       if (!res.ok) {
-<<<<<<< HEAD
-        const text = await res.text();
-        throw new Error(`Webhook failed: ${res.status} - ${text}`);
-=======
         throw new Error(`Webhook failed with status ${res.status}`);
->>>>>>> 9af41d47 (Fix Sidebar context issue and standardize imports)
       }
 
       const data = await res.json();
       console.log('Webhook response:', data);
       const runId = resolveRunId(data);
-<<<<<<< HEAD
-
-=======
->>>>>>> 9af41d47 (Fix Sidebar context issue and standardize imports)
       if (!runId) {
         throw new Error('Invalid response from webhook');
       }
 
       setKeywordRunId(runId);
-<<<<<<< HEAD
-      setKeywordStatus('idle');
-=======
->>>>>>> 9af41d47 (Fix Sidebar context issue and standardize imports)
       console.log('Run ID:', runId);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unable to reach webhook.';
       setKeywordWebhookError(message);
-<<<<<<< HEAD
-      setKeywordStatus('failed');
-=======
->>>>>>> 9af41d47 (Fix Sidebar context issue and standardize imports)
     }
   };
 
@@ -329,24 +226,12 @@ export function VendorDiscovery() {
             </div>
 
             <ScrapeCounter value={rfqCount} setValue={setRfqCount} />
-<<<<<<< HEAD
-
-            <PrimaryButton
-              className="h-[52px] w-full text-[16px]"
-              disabled={rfqStatus === 'running'}
-              onClick={() => {
-                setRfqStatus('running');
-                setRfqStepIndex(0);
-              }}
-            >
-=======
             <DiscoverySourceSelector selectedSources={selectedSources} onToggleSource={toggleSource} />
 
             <PrimaryButton className="h-[52px] w-full text-[16px]" disabled={rfqStatus === 'running'} onClick={() => {
               setRfqStatus('running');
               setRfqStepIndex(0);
             }}>
->>>>>>> 9af41d47 (Fix Sidebar context issue and standardize imports)
               {rfqStatus === 'running' ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Parsing RFQ...</> : 'Start Discovery'}
             </PrimaryButton>
 
@@ -372,22 +257,11 @@ export function VendorDiscovery() {
             />
 
             <ScrapeCounter value={keywordCount} setValue={setKeywordCount} />
-<<<<<<< HEAD
-
-            <PrimaryButton
-              className="h-[52px] w-full text-[16px]"
-              disabled={!keyword.trim() || keywordSearchActive}
-              onClick={() => {
-                void startKeywordSearch();
-              }}
-            >
-=======
             <DiscoverySourceSelector selectedSources={selectedSources} onToggleSource={toggleSource} />
 
             <PrimaryButton className="h-[52px] w-full text-[16px]" disabled={!keyword.trim() || keywordSearchActive} onClick={() => {
               void startKeywordSearch();
             }}>
->>>>>>> 9af41d47 (Fix Sidebar context issue and standardize imports)
               {keywordSearchActive ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Discovering...</> : 'Start Discovery'}
             </PrimaryButton>
             {keywordWebhookError ? (
@@ -401,25 +275,13 @@ export function VendorDiscovery() {
               </div>
             ) : null}
 
-<<<<<<< HEAD
-            {keywordProgressSnapshot ? (
-=======
             {keywordSearchStarted ? (
->>>>>>> 9af41d47 (Fix Sidebar context issue and standardize imports)
               <SearchStatusProgress
                 status={keywordProgressSnapshot.status}
                 enriched={keywordProgressSnapshot.enriched}
                 total={keywordProgressSnapshot.total}
               />
             ) : null}
-<<<<<<< HEAD
-            {keywordRunId && keywordProgress.status === 'completed' ? (
-              <div className="text-right">
-                <Link to="/discovery/dump" className="text-[14px] font-[600] text-[#0a0a0a] hover:text-[#404040]">View in Vendor Dump</Link>
-              </div>
-            ) : null}
-=======
->>>>>>> 9af41d47 (Fix Sidebar context issue and standardize imports)
           </div>
         </Card>
       </div>
@@ -462,9 +324,6 @@ function ScrapeCounter({ value, setValue }: { value: number; setValue: (value: n
       </div>
       <div className="flex items-center overflow-hidden rounded-[8px] border border-[#e5e5e5] bg-white">
         <button type="button" className="h-10 w-10 text-[#666] hover:bg-[#fafafa]" onClick={() => setValue(Math.max(5, value - 1))}>-</button>
-<<<<<<< HEAD
-        <div className="flex h-10 min-w-12 items-center justify-center border-x border-[#e5e5e5] px-3 text-[14px] font-[600]">{value}</div>
-=======
         <input
           type="number"
           min={5}
@@ -478,15 +337,12 @@ function ScrapeCounter({ value, setValue }: { value: number; setValue: (value: n
           }}
           className="h-10 w-16 border-x border-[#e5e5e5] text-center text-[14px] font-[600] text-[#0a0a0a] outline-none"
         />
->>>>>>> 9af41d47 (Fix Sidebar context issue and standardize imports)
         <button type="button" className="h-10 w-10 text-[#666] hover:bg-[#fafafa]" onClick={() => setValue(value + 1)}>+</button>
       </div>
     </div>
   );
 }
 
-<<<<<<< HEAD
-=======
 function DiscoverySourceSelector({
   selectedSources,
   onToggleSource,
@@ -515,7 +371,6 @@ function DiscoverySourceSelector({
   );
 }
 
->>>>>>> 9af41d47 (Fix Sidebar context issue and standardize imports)
 function ProgressPanel({
   status,
   step,
@@ -545,9 +400,3 @@ function ProgressPanel({
     </div>
   );
 }
-<<<<<<< HEAD
-
-
-
-=======
->>>>>>> 9af41d47 (Fix Sidebar context issue and standardize imports)
