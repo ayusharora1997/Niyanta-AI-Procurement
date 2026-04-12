@@ -16,7 +16,7 @@ const progressSteps = [
 const discoverySources = ['IndiaMart', 'TradeIndia', 'Udaan', 'Moglix'];
 const KEYWORD_WEBHOOK_URL = import.meta.env.DEV
   ? '/webhook-test/start-discovery'
-  : 'https://n8n-production-a167.up.railway.app/webhook-test/start-discovery';
+  : 'https://n8n-production-11c9.up.railway.app/webhook-test/start-discovery';
 
 function resolveRunId(payload: unknown) {
   if (!payload || typeof payload !== 'object') return null;
@@ -351,3 +351,4 @@ function ProgressPanel({
     </div>
   );
 }
+

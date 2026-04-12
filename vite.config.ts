@@ -17,15 +17,16 @@ export default defineConfig({
   server: {
     proxy: {
       '/webhook': {
-        target: 'https://n8n-production-a167.up.railway.app',
+        target: 'https://n8n-production-11c9.up.railway.app',
         changeOrigin: true,
         secure: true,
       },
       '/webhook-test': {
-        target: 'https://n8n-production-a167.up.railway.app',
+        target: 'https://n8n-production-11c9.up.railway.app',
         changeOrigin: true,
         secure: true,
       },
     }
   }
 })
+
