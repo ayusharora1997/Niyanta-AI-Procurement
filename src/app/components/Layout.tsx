@@ -293,8 +293,9 @@ export function Layout({ children }: LayoutProps) {
           {isActiveModuleAvailable ? children : <ModuleNotFound moduleName={selectedModule} />}
         </main>
       </div>
-    </SidebarProvider>
-  );
+    </div>
+  </SidebarProvider>
+);
 }
 
 function BrandMark({ compact }: { compact: boolean }) {
